@@ -424,7 +424,9 @@ test-results/
 
 # Mac bundle stuff
 *.dmg
-*.app
+# NOTE: *.app kuralı kaldırıldı — Windows'ta core.ignoreCase=true olduğunda
+# `CncMes.App` klasörünü de yutuyordu. Mac .app bundle'lara ihtiyaç olursa
+# daha spesifik bir pattern (ör. /artifacts/*.app) eklenebilir.
 
 # content below from: https://github.com/github/gitignore/blob/master/Global/macOS.gitignore
 # General
