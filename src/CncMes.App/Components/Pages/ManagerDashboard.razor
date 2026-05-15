@@ -1,11 +1,122 @@
 @page "/manager"
 @attribute [Authorize(Roles = Roles.Manager)]
+@using CncMes.Application.Sales
+@using CncMes.Domain.Sales
+@inject ICustomerService Customers
+@inject IOrderService Orders
 
 <PageTitle>CncMes — Yönetici</PageTitle>
 
-<h1>Yönetici Paneli</h1>
-<p>Atölye müdürü ekranı. İleride buraya sipariş açma, iş emri atama, kar/zarar raporları gelecek.</p>
+<h1 class="h3 mb-3">Yönetici Paneli</h1>
 
-<div class="alert alert-info">
-    Şu an placeholder. Phase 2 (Sipariş & Müşteri) ile dolacak.
-</div>
+@if (_loading)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">
+        <strong>Veri yüklenirken hata:</strong>
+        <pre class="mb-0 mt-2" style="white-space:pre-wrap;">@_error</pre>
+    </div>
+}
+else
+{
+    <div class="row g-3 mb-4">
+        <div class="col-sm-4">
+            <div class="card border-primary h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Toplam Müşteri</div>
+                    <div class="display-6">@_customerCount</div>
+                    <a class="stretched-link" href="/manager/customers"></a>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-info h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Toplam Sipariş</div>
+                    <div class="display-6">@_orderCount</div>
+                    <a class="stretched-link" href="/manager/orders"></a>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card border-success h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Toplam Tutar</div>
+                    <div class="display-6">@_totalRevenue.ToString("N0") ₺</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2 class="h5 mb-3">Son Siparişler</h2>
+    @if (_recent.Count == 0)
+    {
+        <div class="alert alert-secondary">Henüz sipariş yok. <a href="/manager/orders/new" class="alert-link">Yeni sipariş oluştur</a>.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Müşteri</th>
+                        <th>Tarih</th>
+                        <th>Durum</th>
+                        <th class="text-end">Tutar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var o in _recent)
+                    {
+                        <tr style="cursor:pointer;" @onclick="@(() => GoTo(o.Id))">
+                            <td>#@o.Id</td>
+                            <td>@o.CustomerName</td>
+                            <td>@o.OrderDate.ToString("dd.MM.yyyy")</td>
+                            <td><span class="badge bg-secondary">@OrderStatus.ToTurkish(o.Status)</span></td>
+                            <td class="text-end">@o.TotalPrice.ToString("N2") ₺</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    private bool _loading = true;
+    private string? _error;
+    private int _customerCount;
+    private int _orderCount;
+    private decimal _totalRevenue;
+    private List<OrderListItemDto> _recent = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var customerList = await Customers.ListAsync();
+            var orderList = await Orders.ListAsync();
+
+            _customerCount = customerList.Count;
+            _orderCount = orderList.Count;
+            _totalRevenue = orderList.Sum(o => o.TotalPrice);
+            _recent = orderList.Take(5).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.ToString();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void GoTo(int orderId) => Nav.NavigateTo($"/manager/orders/{orderId}");
+}

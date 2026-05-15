@@ -1,0 +1,105 @@
+@page "/manager/orders"
+@attribute [Authorize(Roles = Roles.Manager)]
+@using CncMes.Application.Sales
+@using CncMes.Domain.Sales
+@inject IOrderService Orders
+@inject NavigationManager Nav
+
+<PageTitle>CncMes — Siparişler</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Siparişler</h1>
+    <a class="btn btn-primary" href="/manager/orders/new">+ Yeni Sipariş</a>
+</div>
+
+<div class="mb-3" style="max-width: 280px;">
+    <select class="form-select" @bind="_status" @bind:after="LoadAsync">
+        <option value="">Tüm durumlar</option>
+        @foreach (var s in OrderStatus.All)
+        {
+            <option value="@s">@OrderStatus.ToTurkish(s)</option>
+        }
+    </select>
+</div>
+
+@if (_loading)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">
+        <strong>Veri yüklenirken hata:</strong>
+        <pre class="mb-0 mt-2" style="white-space:pre-wrap;">@_error</pre>
+    </div>
+}
+else if (_items.Count == 0)
+{
+    <div class="alert alert-secondary">
+        @(string.IsNullOrEmpty(_status) ? "Henüz sipariş yok." : "Bu durumda sipariş yok.")
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Müşteri</th>
+                    <th>Sipariş Tarihi</th>
+                    <th>Termin</th>
+                    <th>Durum</th>
+                    <th class="text-center">Kalem</th>
+                    <th class="text-end">Toplam</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var o in _items)
+                {
+                    <tr>
+                        <td>#@o.Id</td>
+                        <td><strong>@o.CustomerName</strong></td>
+                        <td>@o.OrderDate.ToString("dd.MM.yyyy")</td>
+                        <td>@(o.DueDate?.ToString("dd.MM.yyyy") ?? "—")</td>
+                        <td><span class="badge bg-secondary">@OrderStatus.ToTurkish(o.Status)</span></td>
+                        <td class="text-center">@o.ItemCount</td>
+                        <td class="text-end">@o.TotalPrice.ToString("N2") ₺</td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-secondary" href="@($"/manager/orders/{o.Id}")">Aç</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<OrderListItemDto> _items = new();
+    private string _status = string.Empty;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var list = await Orders.ListAsync(string.IsNullOrWhiteSpace(_status) ? null : _status);
+            _items = list.ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.ToString();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}

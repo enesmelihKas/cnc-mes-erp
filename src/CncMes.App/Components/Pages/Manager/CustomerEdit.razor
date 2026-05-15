@@ -1,0 +1,149 @@
+@page "/manager/customers/new"
+@page "/manager/customers/{Id:int}"
+@attribute [Authorize(Roles = Roles.Manager)]
+@using CncMes.Application.Sales
+@using CncMes.Application.Sales.Requests
+@inject ICustomerService Customers
+@inject NavigationManager Nav
+
+<PageTitle>CncMes — @(IsNew ? "Yeni Müşteri" : "Müşteri Düzenle")</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">@(IsNew ? "Yeni Müşteri" : $"Müşteri: {_loaded?.Name}")</h1>
+    <a class="btn btn-link" href="/manager/customers">← Listeye dön</a>
+</div>
+
+@if (!IsNew && _loaded is null && !_notFound)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else if (_notFound)
+{
+    <div class="alert alert-warning">Müşteri bulunamadı.</div>
+}
+else
+{
+    <EditForm Model="@_model" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+
+        <div class="row g-3" style="max-width: 720px;">
+            <div class="col-12">
+                <label class="form-label">Ad *</label>
+                <InputText class="form-control" @bind-Value="_model.Name" />
+                <ValidationMessage For="@(() => _model.Name)" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Telefon</label>
+                <InputText class="form-control" @bind-Value="_model.Phone" />
+                <ValidationMessage For="@(() => _model.Phone)" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">E-posta</label>
+                <InputText class="form-control" @bind-Value="_model.Email" />
+                <ValidationMessage For="@(() => _model.Email)" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Vergi No</label>
+                <InputText class="form-control" @bind-Value="_model.TaxNumber" />
+                <ValidationMessage For="@(() => _model.TaxNumber)" />
+            </div>
+            <div class="col-12">
+                <label class="form-label">Notlar</label>
+                <InputTextArea class="form-control" rows="3" @bind-Value="_model.Notes" />
+                <ValidationMessage For="@(() => _model.Notes)" />
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger mt-3">@_error</div>
+        }
+
+        <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary" disabled="@_busy">
+                @(_busy ? "Kaydediliyor..." : (IsNew ? "Oluştur" : "Güncelle"))
+            </button>
+            @if (!IsNew)
+            {
+                <button type="button" class="btn btn-outline-danger ms-auto"
+                        @onclick="HandleDelete" disabled="@_busy">Sil</button>
+            }
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private bool IsNew => Id is null;
+
+    private CustomerRequest _model = new();
+    private CustomerDto? _loaded;
+    private bool _notFound;
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!IsNew)
+        {
+            _loaded = await Customers.GetAsync(Id!.Value);
+            if (_loaded is null) { _notFound = true; return; }
+
+            _model = new CustomerRequest
+            {
+                Name = _loaded.Name,
+                Phone = _loaded.Phone,
+                Email = _loaded.Email,
+                TaxNumber = _loaded.TaxNumber,
+                Notes = _loaded.Notes,
+            };
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            if (IsNew)
+            {
+                await Customers.CreateAsync(_model);
+            }
+            else
+            {
+                await Customers.UpdateAsync(Id!.Value, _model);
+            }
+            Nav.NavigateTo("/manager/customers");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task HandleDelete()
+    {
+        if (IsNew) return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Customers.DeleteAsync(Id!.Value);
+            Nav.NavigateTo("/manager/customers");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

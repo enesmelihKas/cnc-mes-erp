@@ -1,0 +1,103 @@
+@page "/manager/orders/new"
+@attribute [Authorize(Roles = Roles.Manager)]
+@using CncMes.Application.Sales
+@using CncMes.Application.Sales.Requests
+@inject ICustomerService Customers
+@inject IOrderService Orders
+@inject NavigationManager Nav
+
+<PageTitle>CncMes — Yeni Sipariş</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Yeni Sipariş</h1>
+    <a class="btn btn-link" href="/manager/orders">← Listeye dön</a>
+</div>
+
+@if (_customers is null)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else if (_customers.Count == 0)
+{
+    <div class="alert alert-warning">
+        Önce en az bir müşteri eklemelisin.
+        <a href="/manager/customers/new" class="alert-link">Müşteri ekle</a>.
+    </div>
+}
+else
+{
+    <EditForm Model="@_model" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+
+        <div class="row g-3" style="max-width: 720px;">
+            <div class="col-12">
+                <label class="form-label">Müşteri *</label>
+                <InputSelect class="form-select" @bind-Value="_model.CustomerId">
+                    <option value="0">— Müşteri seç —</option>
+                    @foreach (var c in _customers)
+                    {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => _model.CustomerId)" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Sipariş Tarihi *</label>
+                <InputDate class="form-control" @bind-Value="_model.OrderDate" />
+                <ValidationMessage For="@(() => _model.OrderDate)" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Termin</label>
+                <InputDate class="form-control" @bind-Value="_model.DueDate" />
+                <ValidationMessage For="@(() => _model.DueDate)" />
+            </div>
+            <div class="col-12">
+                <label class="form-label">Notlar</label>
+                <InputTextArea class="form-control" rows="3" @bind-Value="_model.Notes" />
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger mt-3">@_error</div>
+        }
+
+        <div class="mt-4">
+            <button type="submit" class="btn btn-primary" disabled="@_busy">
+                @(_busy ? "Oluşturuluyor..." : "Oluştur ve Kalem Ekle")
+            </button>
+        </div>
+    </EditForm>
+}
+
+@code {
+    private List<CustomerDto>? _customers;
+    private readonly CreateOrderRequest _model = new();
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var list = await Customers.ListAsync();
+        _customers = list.ToList();
+    }
+
+    private async Task HandleSubmit()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var order = await Orders.CreateAsync(_model);
+            Nav.NavigateTo($"/manager/orders/{order.Id}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

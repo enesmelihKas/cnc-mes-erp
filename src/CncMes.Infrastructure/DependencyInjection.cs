@@ -1,5 +1,7 @@
+using CncMes.Application.Sales;
 using CncMes.Infrastructure.Identity;
 using CncMes.Infrastructure.Persistence;
+using CncMes.Infrastructure.Sales;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,6 +29,9 @@ public static class DependencyInjection
             .AddRoles<AppRole>()
             .AddRoleManager<RoleManager<AppRole>>()
             .AddEntityFrameworkStores<AppDbContext>();
+
+        services.AddScoped<ICustomerService, CustomerService>();
+        services.AddScoped<IOrderService, OrderService>();
 
         return services;
     }
