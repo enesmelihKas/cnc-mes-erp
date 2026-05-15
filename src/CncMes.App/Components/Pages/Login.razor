@@ -1,0 +1,85 @@
+@page "/login"
+@inject CncMesAuthStateProvider AuthState
+@inject NavigationManager Nav
+
+<PageTitle>CncMes — Giriş</PageTitle>
+
+<div class="d-flex justify-content-center mt-4">
+    <div class="card shadow-sm" style="max-width: 420px; width: 100%;">
+        <div class="card-body">
+            <h1 class="h4 mb-3">CncMes Girişi</h1>
+
+            <EditForm Model="@_model" OnValidSubmit="HandleLogin">
+                <DataAnnotationsValidator />
+
+                <div class="mb-3">
+                    <label class="form-label">Kullanıcı Adı</label>
+                    <InputText class="form-control" @bind-Value="_model.UserName" autocomplete="username" />
+                    <ValidationMessage For="@(() => _model.UserName)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Şifre</label>
+                    <InputText type="password" class="form-control" @bind-Value="_model.Password" autocomplete="current-password" />
+                    <ValidationMessage For="@(() => _model.Password)" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <div class="alert alert-danger py-2">@_error</div>
+                }
+
+                <button type="submit" class="btn btn-primary w-100" disabled="@_busy">
+                    @(_busy ? "Giriş yapılıyor..." : "Giriş Yap")
+                </button>
+            </EditForm>
+
+            <hr />
+            <small class="text-muted">
+                <strong>Demo kullanıcılar (şifre: <code>Admin!23</code>):</strong><br />
+                admin · manager · operator
+            </small>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly LoginModel _model = new();
+    private string? _error;
+    private bool _busy;
+
+    private async Task HandleLogin()
+    {
+        _busy = true;
+        _error = null;
+
+        var result = await AuthState.SignInAsync(_model.UserName!, _model.Password!);
+
+        _busy = false;
+
+        if (!result.Succeeded)
+        {
+            _error = result.Error;
+            return;
+        }
+
+        var target = result.Role switch
+        {
+            Roles.Admin    => "/admin",
+            Roles.Manager  => "/manager",
+            Roles.Operator => "/operator",
+            _              => "/",
+        };
+
+        Nav.NavigateTo(target, forceLoad: false);
+    }
+
+    private class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Kullanıcı adı zorunlu")]
+        public string? UserName { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Şifre zorunlu")]
+        public string? Password { get; set; }
+    }
+}

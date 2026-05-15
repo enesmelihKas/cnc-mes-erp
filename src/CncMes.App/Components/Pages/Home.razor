@@ -1,7 +1,35 @@
 @page "/"
+@inject NavigationManager Nav
 
 <PageTitle>CncMes</PageTitle>
 
-<h1>Hello CNC</h1>
+<h1>CncMes — CNC Atölye Yönetimi</h1>
 
-<p>CNC Atölyesi MES/ERP — Phase 0 hazır.</p>
+<AuthorizeView>
+    <Authorized>
+        <p>Hoş geldin, <strong>@(context.User.Identity?.Name)</strong>. Soldaki menüden rolüne uygun panele geçebilirsin.</p>
+
+        <hr />
+        <h2 class="h5">Yetkilendirme Testi</h2>
+        <p class="text-muted small">
+            Aşağıdaki butonlar her panele zorla geçmeye çalışır. Rolüne uymayanlar
+            <em>"Yetkiniz yok"</em> sayfasını göstermeli.
+        </p>
+        <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-outline-primary"   @onclick='() => Nav.NavigateTo("/admin")'>/admin'e git</button>
+            <button class="btn btn-outline-primary"   @onclick='() => Nav.NavigateTo("/manager")'>/manager'a git</button>
+            <button class="btn btn-outline-primary"   @onclick='() => Nav.NavigateTo("/operator")'>/operator'e git</button>
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <p>Devam etmek için lütfen giriş yap.</p>
+        <a class="btn btn-primary" href="/login">Giriş Ekranı</a>
+
+        <hr />
+        <h2 class="h5">Anonim Yetkilendirme Testi</h2>
+        <p class="text-muted small">
+            Login olmadan korumalı sayfaya gitmeyi dene → <em>"Giriş gerekli"</em> sayfası görünmeli.
+        </p>
+        <button class="btn btn-outline-secondary" @onclick='() => Nav.NavigateTo("/admin")'>/admin'e git (anonim)</button>
+    </NotAuthorized>
+</AuthorizeView>

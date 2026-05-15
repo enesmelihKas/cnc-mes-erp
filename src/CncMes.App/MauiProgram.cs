@@ -1,5 +1,8 @@
+using CncMes.App.Authentication;
 using CncMes.Application;
 using CncMes.Infrastructure;
+using CncMes.Infrastructure.Identity;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Logging;
 
 namespace CncMes.App;
@@ -24,11 +27,20 @@ public static class MauiProgram
 		builder.Services.AddApplication();
 		builder.Services.AddInfrastructure(connectionString);
 
+		builder.Services.AddAuthorizationCore();
+		builder.Services.AddScoped<CncMesAuthStateProvider>();
+		builder.Services.AddScoped<AuthenticationStateProvider>(
+			sp => sp.GetRequiredService<CncMesAuthStateProvider>());
+
 #if DEBUG
 		builder.Services.AddBlazorWebViewDeveloperTools();
 		builder.Logging.AddDebug();
 #endif
 
-		return builder.Build();
+		var app = builder.Build();
+
+		DbInitializer.InitializeAsync(app.Services).GetAwaiter().GetResult();
+
+		return app;
 	}
 }

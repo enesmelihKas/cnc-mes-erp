@@ -1,8 +1,10 @@
+using CncMes.Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace CncMes.Infrastructure.Persistence;
 
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityDbContext<AppUser, AppRole, int>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {

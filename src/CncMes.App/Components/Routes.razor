@@ -1,6 +1,25 @@
-﻿<Router AppAssembly="@typeof(MauiProgram).Assembly">
-    <Found Context="routeData">
-        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
-        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-    </Found>
-</Router>
+@using Microsoft.AspNetCore.Components.Authorization
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(MauiProgram).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    <AuthorizeView Context="inner">
+                        <NotAuthorized>
+                            <h1>Giriş gerekli</h1>
+                            <p>Bu sayfayı görüntülemek için giriş yapmalısınız.</p>
+                            <a class="btn btn-primary" href="/login">Giriş ekranına git</a>
+                        </NotAuthorized>
+                        <Authorized>
+                            <h1>Yetkiniz yok</h1>
+                            <p>Bu sayfaya erişim için gerekli role sahip değilsiniz.</p>
+                            <a class="btn btn-secondary" href="/">Ana sayfaya dön</a>
+                        </Authorized>
+                    </AuthorizeView>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+    </Router>
+</CascadingAuthenticationState>
