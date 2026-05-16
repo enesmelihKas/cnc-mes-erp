@@ -1,11 +1,150 @@
 @page "/operator"
 @attribute [Authorize(Roles = Roles.Operator)]
+@implements IDisposable
+@using System.Security.Claims
+@using System.Threading
+@using CncMes.Application.Production
+@using CncMes.Domain.Production
+@inject IJobService Jobs
+@inject NavigationManager Nav
 
 <PageTitle>CncMes — Operatör</PageTitle>
 
-<h1>Operatör Paneli</h1>
-<p>Tezgah operatörü ekranı. Burada <strong>sadece sana atanmış iş emirleri</strong> görünecek; başlat/bitir butonları olacak.</p>
+<h1 class="h3 mb-3">İşlerim</h1>
 
-<div class="alert alert-info">
-    Şu an placeholder. Phase 3 (İş Emri & Operatör Paneli) ile dolacak.
-</div>
+@if (_loading)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">
+        <strong>Hata:</strong>
+        <pre class="mb-0 mt-2" style="white-space:pre-wrap;">@_error</pre>
+    </div>
+}
+else if (_items.Count == 0)
+{
+    <div class="alert alert-secondary">
+        Sana atanmış aktif iş emri yok. Yönetici atama yaptığında burada görürsün.
+    </div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var j in _items)
+        {
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100 @CardBorder(j.Status)">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="text-muted small">İş #@j.Id</div>
+                                <h5 class="card-title mb-1">@j.PartName</h5>
+                                <div class="text-muted small">
+                                    Sipariş #@j.OrderId — @j.CustomerName
+                                </div>
+                            </div>
+                            <span class="badge @StatusBadge(j.Status)">@JobStatus.ToTurkish(j.Status)</span>
+                        </div>
+
+                        <dl class="row mt-3 mb-3 small">
+                            <dt class="col-5">Adet</dt>
+                            <dd class="col-7">@j.Quantity</dd>
+                            <dt class="col-5">Termin</dt>
+                            <dd class="col-7">@(j.DueDate?.ToString("dd.MM.yyyy") ?? "—")</dd>
+                            @if (j.StartedAt is not null)
+                            {
+                                <dt class="col-5">Başladı</dt>
+                                <dd class="col-7">@j.StartedAt.Value.ToLocalTime().ToString("dd.MM HH:mm")</dd>
+                            }
+                            @if (j.Duration is not null)
+                            {
+                                <dt class="col-5">Süre</dt>
+                                <dd class="col-7">@FormatDuration(j.Duration)</dd>
+                            }
+                        </dl>
+
+                        <a class="btn btn-sm btn-primary stretched-link" href="@($"/operator/jobs/{j.Id}")">
+                            @(j.Status == JobStatus.Done ? "Detay" : "Aç →")
+                        </a>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private List<JobListItemDto> _items = new();
+    private bool _loading = true;
+    private string? _error;
+    private Timer? _tickTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var userId = await CurrentUserIdAsync();
+            if (userId is null)
+            {
+                _error = "Kullanıcı kimliği okunamadı.";
+                return;
+            }
+
+            var list = await Jobs.ListMineAsync(userId.Value);
+            _items = list.ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.ToString();
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        if (_items.Any(j => j.Status == JobStatus.InProgress))
+        {
+            _tickTimer = new Timer(_ => InvokeAsync(StateHasChanged), null, 1000, 1000);
+        }
+    }
+
+    public void Dispose() => _tickTimer?.Dispose();
+
+    private async Task<int?> CurrentUserIdAsync()
+    {
+        if (AuthStateTask is null) return null;
+        var state = await AuthStateTask;
+        var id = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(id, out var v) ? v : null;
+    }
+
+    private static string StatusBadge(string status) => status switch
+    {
+        JobStatus.Pending    => "bg-secondary",
+        JobStatus.Assigned   => "bg-info text-dark",
+        JobStatus.InProgress => "bg-primary",
+        JobStatus.Done       => "bg-success",
+        JobStatus.Cancelled  => "bg-warning text-dark",
+        _ => "bg-secondary",
+    };
+
+    private static string CardBorder(string status) => status switch
+    {
+        JobStatus.InProgress => "border-primary",
+        JobStatus.Done       => "border-success",
+        _                    => "",
+    };
+
+    private static string FormatDuration(TimeSpan? d)
+    {
+        if (d is null) return "—";
+        var t = d.Value;
+        if (t.TotalHours >= 1) return $"{(int)t.TotalHours}s {t.Minutes}dk";
+        if (t.TotalMinutes >= 1) return $"{(int)t.TotalMinutes}dk";
+        return $"{(int)t.TotalSeconds}sn";
+    }
+}

@@ -1,0 +1,248 @@
+@page "/operator/jobs/{Id:int}"
+@attribute [Authorize(Roles = Roles.Operator)]
+@implements IDisposable
+@using System.Security.Claims
+@using System.Threading
+@using CncMes.Application.Production
+@using CncMes.Application.Production.Requests
+@using CncMes.Domain.Production
+@inject IJobService Jobs
+@inject NavigationManager Nav
+
+<PageTitle>CncMes — İş #@Id</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">İş Emri #@Id</h1>
+    <a class="btn btn-link" href="/operator">← İşlerime dön</a>
+</div>
+
+@if (_loading)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else if (_notMine)
+{
+    <div class="alert alert-warning">
+        Bu iş emri sana atanmamış. Sadece kendine atanan işleri görebilirsin.
+    </div>
+}
+else if (_job is null)
+{
+    <div class="alert alert-warning">İş emri bulunamadı.</div>
+}
+else
+{
+    <div class="card mb-3 @CardBorder(_job.Status)">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h2 class="h4 mb-1">@_job.PartName</h2>
+                    <div class="text-muted">
+                        Sipariş #@_job.OrderId — @_job.CustomerName
+                    </div>
+                </div>
+                <span class="badge fs-6 @StatusBadge(_job.Status)">@JobStatus.ToTurkish(_job.Status)</span>
+            </div>
+
+            <hr />
+
+            <dl class="row mb-0">
+                <dt class="col-sm-3">Adet</dt>
+                <dd class="col-sm-9">@_job.Quantity</dd>
+
+                <dt class="col-sm-3">Termin</dt>
+                <dd class="col-sm-9">@(_job.DueDate?.ToString("dd.MM.yyyy") ?? "—")</dd>
+
+                <dt class="col-sm-3">Oluşturuldu</dt>
+                <dd class="col-sm-9">@_job.CreatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</dd>
+
+                @if (_job.StartedAt is not null)
+                {
+                    <dt class="col-sm-3">Başlangıç</dt>
+                    <dd class="col-sm-9">@_job.StartedAt.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</dd>
+                }
+                @if (_job.FinishedAt is not null)
+                {
+                    <dt class="col-sm-3">Bitiş</dt>
+                    <dd class="col-sm-9">@_job.FinishedAt.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")</dd>
+                }
+                @if (_job.Duration is not null)
+                {
+                    <dt class="col-sm-3">Süre</dt>
+                    <dd class="col-sm-9"><strong>@FormatDuration(_job.Duration)</strong></dd>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_job.Notes))
+                {
+                    <dt class="col-sm-3">Notlar</dt>
+                    <dd class="col-sm-9"><pre class="mb-0" style="white-space:pre-wrap;">@_job.Notes</pre></dd>
+                }
+            </dl>
+        </div>
+    </div>
+
+    @if (_job.Status == JobStatus.Assigned)
+    {
+        <button class="btn btn-primary btn-lg" @onclick="StartJob" disabled="@_busy">
+            ▶ İşi Başlat
+        </button>
+    }
+    else if (_job.Status == JobStatus.InProgress)
+    {
+        <div class="card">
+            <div class="card-body">
+                <h3 class="h5">İşi Bitir</h3>
+                <div class="mb-2">
+                    <label class="form-label">Notlar (opsiyonel)</label>
+                    <textarea class="form-control" rows="3" @bind="_finishNotes"
+                              placeholder="Karşılaştığın özel durum, ölçü/kalite notu, vs..."></textarea>
+                </div>
+                <button class="btn btn-success btn-lg" @onclick="FinishJob" disabled="@_busy">
+                    ✓ İşi Bitir
+                </button>
+            </div>
+        </div>
+    }
+    else if (_job.Status == JobStatus.Done)
+    {
+        <div class="alert alert-success mb-0">Bu iş tamamlandı. Tebrikler.</div>
+    }
+    else if (_job.Status == JobStatus.Pending)
+    {
+        <div class="alert alert-info mb-0">Yönetici sana bu işi atadığında "Başlat" butonu çıkacak.</div>
+    }
+    else if (_job.Status == JobStatus.Cancelled)
+    {
+        <div class="alert alert-warning mb-0">Bu iş iptal edildi.</div>
+    }
+
+    @if (!string.IsNullOrEmpty(_actionError))
+    {
+        <div class="alert alert-danger mt-3">@_actionError</div>
+    }
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+    [CascadingParameter] private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private JobDetailDto? _job;
+    private bool _loading = true;
+    private bool _notMine;
+    private bool _busy;
+    private string? _actionError;
+    private string? _finishNotes;
+    private int? _userId;
+    private Timer? _tickTimer;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _notMine = false;
+        _actionError = null;
+        try
+        {
+            _userId = await CurrentUserIdAsync();
+            if (_userId is null)
+            {
+                _actionError = "Kullanıcı kimliği okunamadı.";
+                return;
+            }
+
+            _job = await Jobs.GetAsync(Id);
+            if (_job is null) return;
+            if (_job.AssignedOperatorId != _userId)
+            {
+                _notMine = true;
+                _job = null;
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        UpdateTickTimer();
+    }
+
+    private void UpdateTickTimer()
+    {
+        if (_job?.Status == JobStatus.InProgress)
+        {
+            _tickTimer ??= new Timer(_ => InvokeAsync(StateHasChanged), null,
+                dueTime: 1000, period: 1000);
+        }
+        else
+        {
+            _tickTimer?.Dispose();
+            _tickTimer = null;
+        }
+    }
+
+    public void Dispose() => _tickTimer?.Dispose();
+
+    private async Task StartJob()
+    {
+        if (_userId is null) return;
+        _busy = true;
+        _actionError = null;
+        try
+        {
+            _job = await Jobs.StartAsync(Id, _userId.Value);
+        }
+        catch (Exception ex) { _actionError = ex.Message; }
+        finally { _busy = false; }
+
+        UpdateTickTimer();
+    }
+
+    private async Task FinishJob()
+    {
+        if (_userId is null) return;
+        _busy = true;
+        _actionError = null;
+        try
+        {
+            _job = await Jobs.FinishAsync(Id, _userId.Value, new JobNoteRequest { Notes = _finishNotes });
+            _finishNotes = null;
+        }
+        catch (Exception ex) { _actionError = ex.Message; }
+        finally { _busy = false; }
+
+        UpdateTickTimer();
+    }
+
+    private async Task<int?> CurrentUserIdAsync()
+    {
+        if (AuthStateTask is null) return null;
+        var state = await AuthStateTask;
+        var id = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(id, out var v) ? v : null;
+    }
+
+    private static string StatusBadge(string status) => status switch
+    {
+        JobStatus.Pending    => "bg-secondary",
+        JobStatus.Assigned   => "bg-info text-dark",
+        JobStatus.InProgress => "bg-primary",
+        JobStatus.Done       => "bg-success",
+        JobStatus.Cancelled  => "bg-warning text-dark",
+        _ => "bg-secondary",
+    };
+
+    private static string CardBorder(string status) => status switch
+    {
+        JobStatus.InProgress => "border-primary",
+        JobStatus.Done       => "border-success",
+        _                    => "",
+    };
+
+    private static string FormatDuration(TimeSpan? d)
+    {
+        if (d is null) return "—";
+        var t = d.Value;
+        if (t.TotalHours >= 1) return $"{(int)t.TotalHours}s {t.Minutes}dk";
+        if (t.TotalMinutes >= 1) return $"{(int)t.TotalMinutes}dk";
+        return $"{(int)t.TotalSeconds}sn";
+    }
+}

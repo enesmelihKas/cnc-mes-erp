@@ -1,0 +1,236 @@
+@page "/manager/jobs"
+@attribute [Authorize(Roles = Roles.Manager)]
+@using CncMes.Application.Production
+@using CncMes.Application.Production.Requests
+@using CncMes.Domain.Production
+@inject IJobService Jobs
+@inject NavigationManager Nav
+
+<PageTitle>CncMes — İş Emirleri</PageTitle>
+
+<h1 class="h3 mb-3">İş Emirleri</h1>
+
+<div class="row g-2 mb-3">
+    <div class="col-sm-4">
+        <label class="form-label small text-muted mb-1">Durum</label>
+        <select class="form-select" @bind="_status" @bind:after="LoadAsync">
+            <option value="">Tüm durumlar</option>
+            @foreach (var s in JobStatus.All)
+            {
+                <option value="@s">@JobStatus.ToTurkish(s)</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-4">
+        <label class="form-label small text-muted mb-1">Operatör</label>
+        <select class="form-select" @bind="_operatorFilter" @bind:after="LoadAsync">
+            <option value="0">Tüm operatörler</option>
+            <option value="-1">Atanmamış</option>
+            @if (_operators is not null)
+            {
+                @foreach (var op in _operators)
+                {
+                    <option value="@op.Id">@(op.FullName ?? op.UserName)</option>
+                }
+            }
+        </select>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">
+        <strong>Hata:</strong>
+        <pre class="mb-0 mt-2" style="white-space:pre-wrap;">@_error</pre>
+    </div>
+}
+else if (_items.Count == 0)
+{
+    <div class="alert alert-secondary">Filtreye uyan iş emri yok.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Sipariş</th>
+                    <th>Müşteri</th>
+                    <th>Parça</th>
+                    <th class="text-center">Adet</th>
+                    <th>Durum</th>
+                    <th>Atanan Operatör</th>
+                    <th>Termin</th>
+                    <th>Süre</th>
+                    <th class="text-end">İşlem</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var j in _items)
+                {
+                    <tr>
+                        <td>#@j.Id</td>
+                        <td><a href="@($"/manager/orders/{j.OrderId}")">#@j.OrderId</a></td>
+                        <td>@j.CustomerName</td>
+                        <td>@j.PartName</td>
+                        <td class="text-center">@j.Quantity</td>
+                        <td><span class="badge @StatusBadge(j.Status)">@JobStatus.ToTurkish(j.Status)</span></td>
+                        <td style="min-width:180px;">
+                            @if (j.Status is JobStatus.Done or JobStatus.Cancelled)
+                            {
+                                <span>@(j.AssignedOperatorName ?? "—")</span>
+                            }
+                            else
+                            {
+                                <select class="form-select form-select-sm"
+                                        value="@(j.AssignedOperatorId?.ToString() ?? "")"
+                                        @onchange="@(e => OnOperatorChanged(j.Id, e.Value?.ToString()))"
+                                        disabled="@_busy">
+                                    <option value="">— Atanmamış —</option>
+                                    @if (_operators is not null)
+                                    {
+                                        @foreach (var op in _operators)
+                                        {
+                                            <option value="@op.Id">@(op.FullName ?? op.UserName)</option>
+                                        }
+                                    }
+                                </select>
+                            }
+                        </td>
+                        <td>@(j.DueDate?.ToString("dd.MM.yyyy") ?? "—")</td>
+                        <td>@FormatDuration(j.Duration)</td>
+                        <td class="text-end">
+                            @if (j.Status is JobStatus.Pending or JobStatus.Assigned or JobStatus.InProgress)
+                            {
+                                <button class="btn btn-sm btn-outline-warning me-1"
+                                        @onclick="() => CancelJob(j.Id)" disabled="@_busy">İptal</button>
+                            }
+                            @if (j.Status is not JobStatus.InProgress)
+                            {
+                                <button class="btn btn-sm btn-outline-danger"
+                                        @onclick="() => DeleteJob(j.Id)" disabled="@_busy">Sil</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<JobListItemDto> _items = new();
+    private List<OperatorSummaryDto>? _operators;
+    private string _status = string.Empty;
+    private int _operatorFilter; // 0 = all, -1 = unassigned, >0 = specific
+    private bool _loading = true;
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _operators = (await Jobs.ListOperatorsAsync()).ToList();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var status = string.IsNullOrWhiteSpace(_status) ? null : _status;
+            int? opFilter = _operatorFilter > 0 ? _operatorFilter : null;
+
+            var list = await Jobs.ListAsync(status, opFilter);
+
+            if (_operatorFilter == -1)
+            {
+                list = list.Where(j => j.AssignedOperatorId is null).ToList();
+            }
+
+            _items = list.ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.ToString();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnOperatorChanged(int jobId, string? raw)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            if (string.IsNullOrEmpty(raw))
+            {
+                await Jobs.UnassignAsync(jobId);
+            }
+            else if (int.TryParse(raw, out var opId))
+            {
+                await Jobs.AssignAsync(jobId, new AssignJobRequest { OperatorId = opId });
+            }
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CancelJob(int jobId)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Jobs.CancelAsync(jobId);
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task DeleteJob(int jobId)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await Jobs.DeleteAsync(jobId);
+            await LoadAsync();
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private static string StatusBadge(string status) => status switch
+    {
+        JobStatus.Pending    => "bg-secondary",
+        JobStatus.Assigned   => "bg-info text-dark",
+        JobStatus.InProgress => "bg-primary",
+        JobStatus.Done       => "bg-success",
+        JobStatus.Cancelled  => "bg-warning text-dark",
+        _ => "bg-secondary",
+    };
+
+    private static string FormatDuration(TimeSpan? d)
+    {
+        if (d is null) return "—";
+        var t = d.Value;
+        if (t.TotalHours >= 1) return $"{(int)t.TotalHours}s {t.Minutes}dk";
+        if (t.TotalMinutes >= 1) return $"{(int)t.TotalMinutes}dk";
+        return $"{(int)t.TotalSeconds}sn";
+    }
+}
