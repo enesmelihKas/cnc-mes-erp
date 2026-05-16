@@ -24,12 +24,17 @@ public static class MauiProgram
 		var dbPath = Path.Combine(FileSystem.AppDataDirectory, "cncmes.db");
 		var connectionString = $"Data Source={dbPath}";
 
+		var stlDir = Path.Combine(FileSystem.AppDataDirectory, "stl");
+
 		builder.Services.AddApplication();
-		builder.Services.AddInfrastructure(connectionString);
+		builder.Services.AddInfrastructure(connectionString, stlDir);
 
 		builder.Services.AddAuthorizationCore();
-		builder.Services.AddScoped<CncMesAuthStateProvider>();
-		builder.Services.AddScoped<AuthenticationStateProvider>(
+		// Singleton: MAUI tek-pencere bir desktop process; BlazorWebView F5 ile yeniden
+		// yüklendiğinde Scoped olsaydı oturum sıfırlanırdı. Singleton sayesinde
+		// in-memory auth state webview reload'undan etkilenmiyor.
+		builder.Services.AddSingleton<CncMesAuthStateProvider>();
+		builder.Services.AddSingleton<AuthenticationStateProvider>(
 			sp => sp.GetRequiredService<CncMesAuthStateProvider>());
 
 #if DEBUG
