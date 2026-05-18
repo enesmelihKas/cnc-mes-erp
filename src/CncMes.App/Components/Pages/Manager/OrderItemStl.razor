@@ -1,0 +1,476 @@
+@page "/manager/items/{Id:int}/stl"
+@attribute [Authorize(Roles = Roles.Manager)]
+@using CncMes.Application.Pricing
+@using CncMes.Application.Production
+@using CncMes.Application.Sales
+@using CncMes.Domain.Pricing
+@inject IOrderService Orders
+@inject IStlAnalysisService Stl
+@inject IMaterialService Materials
+@inject NavigationManager Nav
+
+<PageTitle>CncMes — STL Analizi</PageTitle>
+
+@if (_item is null)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0">STL Analizi — @_item.PartName</h1>
+            <div class="text-muted small">Kalem #@_item.Id · Sipariş #@_item.OrderId · Adet @_item.Quantity</div>
+        </div>
+        <a class="btn btn-link" href="@($"/manager/orders/{_item.OrderId}")">← Siparişe dön</a>
+    </div>
+
+    <div class="row g-4">
+        @* ---------- SOL KOLON: STL upload + geometri ---------- *@
+        <div class="col-lg-4">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h2 class="h5">STL Dosyası</h2>
+                    @if (_item.HasStl)
+                    {
+                        <p class="mb-2">
+                            <span class="badge bg-success">Yüklü</span>
+                            <strong class="ms-2">@_item.StlFileName</strong>
+                        </p>
+                        @if (_item.AnalyzedAt is not null)
+                        {
+                            <div class="text-muted small">
+                                Analiz: @_item.AnalyzedAt.Value.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                            </div>
+                        }
+                        <button class="btn btn-outline-danger btn-sm mt-3" @onclick="RemoveStl" disabled="@_busy">
+                            STL'yi Kaldır
+                        </button>
+                    }
+                    else
+                    {
+                        <p class="text-muted">Henüz STL yüklenmemiş.</p>
+                    }
+
+                    <hr />
+                    <label class="form-label">@(_item.HasStl ? "Yeniden Yükle" : "STL Dosyası Seç") (.stl)</label>
+                    <InputFile OnChange="OnFileSelected" accept=".stl" class="form-control" disabled="@_busy" />
+                    @if (_busy)
+                    {
+                        <div class="mt-2 text-muted">İşleniyor...</div>
+                    }
+                    @if (!string.IsNullOrEmpty(_stlError))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@_stlError</div>
+                    }
+                </div>
+            </div>
+
+            @if (_item.AnalyzedAt is not null)
+            {
+                <div class="card">
+                    <div class="card-body">
+                        <h2 class="h5">Geometri</h2>
+                        <dl class="row mb-0 small">
+                            <dt class="col-6">Hacim</dt>
+                            <dd class="col-6"><strong>@_item.VolumeCm3?.ToString("N2") cm³</strong></dd>
+
+                            <dt class="col-6">Yüzey alanı</dt>
+                            <dd class="col-6">@_item.SurfaceAreaCm2?.ToString("N2") cm²</dd>
+
+                            <dt class="col-6">Sınır kutusu</dt>
+                            <dd class="col-6">
+                                @_item.BoundingBoxXCm?.ToString("N1") × @_item.BoundingBoxYCm?.ToString("N1") × @_item.BoundingBoxZCm?.ToString("N1") cm
+                            </dd>
+
+                            <dt class="col-6">Üçgen sayısı</dt>
+                            <dd class="col-6">@_item.TriangleCount?.ToString("N0")</dd>
+
+                            <dt class="col-6">Aspect ratio</dt>
+                            <dd class="col-6">@_item.AspectRatio?.ToString("N2") @(IsHighAspect ? "⚠️" : "")</dd>
+
+                            <dt class="col-6">Solidity</dt>
+                            <dd class="col-6">@(_item.Solidity?.ToString("P0")) @(IsLowSolidity ? "⚠️" : "")</dd>
+
+                            <dt class="col-6">Talaş oranı</dt>
+                            <dd class="col-6">@_item.ExcessMaterialRatio?.ToString("N2")×</dd>
+
+                            <dt class="col-6">Watertight</dt>
+                            <dd class="col-6">
+                                @if (_item.IsClosedMesh == true)
+                                {
+                                    <span class="text-success">✓ Kapalı mesh</span>
+                                }
+                                else
+                                {
+                                    <span class="text-warning">⚠️ Açık mesh (hacim güvenilmez olabilir)</span>
+                                }
+                            </dd>
+                        </dl>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ---------- ORTA KOLON: Parça özellikleri formu ---------- *@
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <h2 class="h5">Parça Özellikleri</h2>
+                    @if (_materials is null)
+                    {
+                        <p class="text-muted">Yükleniyor...</p>
+                    }
+                    else
+                    {
+                        <EditForm Model="@_features" OnValidSubmit="SaveFeatures">
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">Hammadde *</label>
+                                <InputSelect class="form-select" @bind-Value="_features.MaterialId">
+                                    <option value="0">— Seçiniz —</option>
+                                    @foreach (var m in _materials)
+                                    {
+                                        <option value="@m.Id">@m.Name (@m.CostPerCm3 ₺/cm³ · işl. @m.MachinabilityFactor×)</option>
+                                    }
+                                </InputSelect>
+                                <ValidationMessage For="@(() => _features.MaterialId)" />
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">Tolerans *</label>
+                                <InputSelect class="form-select" @bind-Value="_features.ToleranceGrade">
+                                    @foreach (var t in ToleranceGrade.All)
+                                    {
+                                        <option value="@t">@ToleranceGrade.ToTurkish(t) (@FormatToleranceFactor(t)×)</option>
+                                    }
+                                </InputSelect>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">Yüzey işlem *</label>
+                                <InputSelect class="form-select" @bind-Value="_features.SurfaceFinish">
+                                    @foreach (var s in SurfaceFinish.All)
+                                    {
+                                        <option value="@s">@SurfaceFinish.ToTurkish(s)</option>
+                                    }
+                                </InputSelect>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label small mb-1">Delik sayısı</label>
+                                <InputNumber class="form-control" @bind-Value="_features.HoleCount" />
+                                <ValidationMessage For="@(() => _features.HoleCount)" />
+                            </div>
+
+                            <div class="form-check mb-3">
+                                <InputCheckbox class="form-check-input" id="heatTreated" @bind-Value="_features.HeatTreated" />
+                                <label class="form-check-label" for="heatTreated">Isıl işlem uygula</label>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small mb-1">Notlar</label>
+                                <InputTextArea class="form-control" rows="2" @bind-Value="_features.ManualNotes" />
+                            </div>
+
+                            @if (!string.IsNullOrEmpty(_featuresError))
+                            {
+                                <div class="alert alert-danger py-2 small mb-2">@_featuresError</div>
+                            }
+                            @if (_featuresSaved)
+                            {
+                                <div class="alert alert-success py-2 small mb-2">Kaydedildi.</div>
+                            }
+
+                            <button type="submit" class="btn btn-primary w-100" disabled="@_busy">
+                                Kaydet &amp; Yeniden Hesapla
+                            </button>
+                        </EditForm>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* ---------- SAĞ KOLON: Fiyat breakdown ---------- *@
+        <div class="col-lg-4">
+            @if (_item.EstimatedUnitPrice is null)
+            {
+                <div class="alert alert-info">
+                    Fiyat tahmini için: STL yükle, hammaddesi seç, formu kaydet.
+                </div>
+            }
+            else
+            {
+                <div class="card border-primary">
+                    <div class="card-body">
+                        <h2 class="h5 mb-3">Fiyat Tahmini</h2>
+
+                        @if (_breakdown is not null)
+                        {
+                            <table class="table table-sm small mb-3">
+                                <tbody>
+                                    <tr>
+                                        <td>Hammadde</td>
+                                        <td class="text-end">@_breakdown.MaterialCost.ToString("N2") ₺</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted ps-3 small" colspan="2">
+                                            @_breakdown.MaterialName · @_item.VolumeCm3?.ToString("N2") cm³ × talaş @_breakdown.WasteFactor.ToString("N2")
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>İşçilik</td>
+                                        <td class="text-end">@_breakdown.LaborCost.ToString("N2") ₺</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted ps-3 small" colspan="2">
+                                            @_breakdown.EffectiveMinutes.ToString("N1") efektif dk
+                                            (işl. @_breakdown.MachinabilityFactor.ToString("N2")× · tol. @_breakdown.ToleranceFactor.ToString("N2")×)
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Makine</td>
+                                        <td class="text-end">@_breakdown.MachineCost.ToString("N2") ₺</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Kurulum</td>
+                                        <td class="text-end">@_breakdown.SetupCost.ToString("N2") ₺</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted ps-3 small" colspan="2">
+                                            aspect @_breakdown.AspectFactor.ToString("N2")× / @_item.Quantity adet
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Yüzey işlem</td>
+                                        <td class="text-end">@_breakdown.FinishCost.ToString("N2") ₺</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="text-muted ps-3 small" colspan="2">@_breakdown.SurfaceFinishLabel</td>
+                                    </tr>
+                                    <tr class="border-top">
+                                        <td><strong>Ara toplam</strong></td>
+                                        <td class="text-end"><strong>@_breakdown.Subtotal.ToString("N2") ₺</strong></td>
+                                    </tr>
+                                    @if (_breakdown.HeatTreatmentDelta != 0)
+                                    {
+                                        <tr>
+                                            <td>Isıl işlem</td>
+                                            <td class="text-end">+@_breakdown.HeatTreatmentDelta.ToString("N2") ₺</td>
+                                        </tr>
+                                    }
+                                    <tr class="border-top">
+                                        <td><strong>TOPLAM</strong></td>
+                                        <td class="text-end">
+                                            <strong class="text-primary fs-5">@_breakdown.Total.ToString("N2") ₺</strong>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        }
+                        else
+                        {
+                            <p>
+                                <strong class="text-primary fs-5">
+                                    Önerilen: @_item.EstimatedUnitPrice?.ToString("N2") ₺
+                                </strong>
+                            </p>
+                            <p class="text-muted small">
+                                Breakdown için formu "Kaydet & Yeniden Hesapla" ile bir kez işle.
+                            </p>
+                        }
+
+                        <hr />
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="small text-muted">Mevcut birim fiyat:</span>
+                            <span>@_item.UnitPrice.ToString("N2") ₺</span>
+                        </div>
+
+                        @if (_item.EstimatedUnitPrice is decimal est && est != _item.UnitPrice)
+                        {
+                            <button class="btn btn-primary w-100 mt-3" @onclick="ApplyPrice" disabled="@_busy">
+                                Önerilen fiyatı uygula (@est.ToString("N2") ₺)
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="alert alert-success py-2 mb-0 mt-3 small">
+                                Birim fiyat zaten önerilen değerle aynı.
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <p class="text-muted small mt-3 mb-0">
+                    Katsayılar <a href="/admin/pricing">Admin → Fiyatlandırma</a>'dan ayarlanır.
+                </p>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private const long MaxFileSize = 50 * 1024 * 1024; // 50 MB
+
+    private OrderItemDto? _item;
+    private List<MaterialDto>? _materials;
+    private PricingSettingsDto? _pricingSettings;
+    private PartFeaturesRequest _features = new();
+    private PriceBreakdown? _breakdown;
+
+    private bool _busy;
+    private bool _featuresSaved;
+    private string? _stlError;
+    private string? _featuresError;
+
+    [Inject] private IPricingService Pricing { get; set; } = default!;
+
+    private bool IsHighAspect => (_item?.AspectRatio ?? 0) > 5m;
+    private bool IsLowSolidity => (_item?.Solidity ?? 1m) < 0.5m;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _item = await Orders.GetItemAsync(Id);
+        if (_item is null)
+        {
+            Nav.NavigateTo("/manager/orders");
+            return;
+        }
+
+        _materials ??= (await Materials.ListAsync()).ToList();
+        _pricingSettings ??= await Pricing.GetAsync();
+
+        _features = new PartFeaturesRequest
+        {
+            MaterialId = _item.MaterialId ?? 0,
+            ToleranceGrade = _item.ToleranceGrade,
+            SurfaceFinish = _item.SurfaceFinish,
+            HoleCount = _item.HoleCount,
+            HeatTreated = _item.HeatTreated,
+            ManualNotes = _item.ManualNotes,
+        };
+
+        RecomputeBreakdownForDisplay();
+    }
+
+    private async Task OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _stlError = null;
+        var file = e.File;
+        if (file is null) return;
+
+        if (!file.Name.EndsWith(".stl", StringComparison.OrdinalIgnoreCase))
+        {
+            _stlError = "Sadece .stl uzantılı dosyalar yüklenebilir.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await using var stream = file.OpenReadStream(MaxFileSize);
+            await Stl.UploadAndAnalyzeAsync(Id, file.Name, stream);
+            _item = await Orders.GetItemAsync(Id);
+            RecomputeBreakdownForDisplay();
+        }
+        catch (Exception ex) { _stlError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task RemoveStl()
+    {
+        _busy = true;
+        _stlError = null;
+        try
+        {
+            await Stl.RemoveAsync(Id);
+            _item = await Orders.GetItemAsync(Id);
+            _breakdown = null;
+        }
+        catch (Exception ex) { _stlError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task ApplyPrice()
+    {
+        _busy = true;
+        _stlError = null;
+        try
+        {
+            await Stl.ApplyEstimatedPriceAsync(Id);
+            _item = await Orders.GetItemAsync(Id);
+        }
+        catch (Exception ex) { _stlError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    private async Task SaveFeatures()
+    {
+        _busy = true;
+        _featuresError = null;
+        _featuresSaved = false;
+        try
+        {
+            _item = await Orders.UpdatePartFeaturesAsync(Id, _features);
+            RecomputeBreakdownForDisplay();
+            _featuresSaved = true;
+        }
+        catch (Exception ex) { _featuresError = ex.Message; }
+        finally { _busy = false; }
+    }
+
+    /// <summary>
+    /// Estimate'i yeniden çağırıp UI breakdown'ını doldurur (gösterim için — DB zaten servis
+    /// tarafında güncellendi ama breakdown record DB'de saklanmıyor).
+    /// </summary>
+    private void RecomputeBreakdownForDisplay()
+    {
+        if (_item is null || _item.VolumeCm3 is null || _item.MaterialId is null || _pricingSettings is null || _materials is null)
+        {
+            _breakdown = null;
+            return;
+        }
+
+        var material = _materials.FirstOrDefault(m => m.Id == _item.MaterialId.Value);
+        if (material is null)
+        {
+            _breakdown = null;
+            return;
+        }
+
+        var geometry = new StlGeometryDto(
+            VolumeCm3:           _item.VolumeCm3 ?? 0,
+            SurfaceAreaCm2:      _item.SurfaceAreaCm2 ?? 0,
+            BoundingBoxXCm:      _item.BoundingBoxXCm ?? 0,
+            BoundingBoxYCm:      _item.BoundingBoxYCm ?? 0,
+            BoundingBoxZCm:      _item.BoundingBoxZCm ?? 0,
+            TriangleCount:       _item.TriangleCount ?? 0,
+            AspectRatio:         _item.AspectRatio ?? 1,
+            Solidity:            _item.Solidity ?? 1,
+            ExcessMaterialRatio: _item.ExcessMaterialRatio ?? 1,
+            IsClosedMesh:        _item.IsClosedMesh ?? false);
+
+        var features = new PartFeaturesSnapshot(
+            _item.ToleranceGrade, _item.SurfaceFinish,
+            _item.HoleCount, _item.HeatTreated, _item.Quantity);
+
+        var est = Pricing.Estimate(geometry, features, material, _pricingSettings);
+        _breakdown = est.Breakdown;
+    }
+
+    private string FormatToleranceFactor(string grade)
+    {
+        if (_pricingSettings is null) return "?";
+        return grade switch
+        {
+            ToleranceGrade.Rough        => _pricingSettings.ToleranceFactorRough.ToString("N2"),
+            ToleranceGrade.Standard     => _pricingSettings.ToleranceFactorStandard.ToString("N2"),
+            ToleranceGrade.Precise      => _pricingSettings.ToleranceFactorPrecise.ToString("N2"),
+            ToleranceGrade.UltraPrecise => _pricingSettings.ToleranceFactorUltraPrecise.ToString("N2"),
+            _ => "?",
+        };
+    }
+}

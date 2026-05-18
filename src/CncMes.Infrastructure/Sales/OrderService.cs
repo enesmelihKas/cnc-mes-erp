@@ -1,5 +1,8 @@
+using CncMes.Application.Pricing;
+using CncMes.Application.Production;
 using CncMes.Application.Sales;
 using CncMes.Application.Sales.Requests;
+using CncMes.Domain.Pricing;
 using CncMes.Domain.Sales;
 using CncMes.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -9,10 +12,12 @@ namespace CncMes.Infrastructure.Sales;
 public class OrderService : IOrderService
 {
     private readonly AppDbContext _db;
+    private readonly IStlAnalysisService _stl;
 
-    public OrderService(AppDbContext db)
+    public OrderService(AppDbContext db, IStlAnalysisService stl)
     {
         _db = db;
+        _stl = stl;
     }
 
     public async Task<IReadOnlyList<OrderListItemDto>> ListAsync(string? statusFilter = null, CancellationToken ct = default)
@@ -53,7 +58,7 @@ public class OrderService : IOrderService
         var order = await _db.Orders
             .AsNoTracking()
             .Include(o => o.Customer)
-            .Include(o => o.Items)
+            .Include(o => o.Items).ThenInclude(i => i.Material)
             .FirstOrDefaultAsync(o => o.Id == id, ct);
 
         if (order is null) return null;
@@ -70,12 +75,49 @@ public class OrderService : IOrderService
             order.CreatedAt,
             order.Items
                 .OrderBy(i => i.Id)
-                .Select(i => new OrderItemDto(
-                    i.Id, i.OrderId, i.PartName, i.Quantity,
-                    i.UnitPrice, i.UnitPrice * i.Quantity,
-                    i.IsRnD, i.StlFilePath))
+                .Select(ToItemDto)
                 .ToList());
     }
+
+    public async Task<OrderItemDto?> GetItemAsync(int itemId, CancellationToken ct = default)
+    {
+        var item = await _db.OrderItems
+            .AsNoTracking()
+            .Include(i => i.Material)
+            .FirstOrDefaultAsync(i => i.Id == itemId, ct);
+        return item is null ? null : ToItemDto(item);
+    }
+
+    private static OrderItemDto ToItemDto(OrderItem i) => new(
+        Id: i.Id,
+        OrderId: i.OrderId,
+        PartName: i.PartName,
+        Quantity: i.Quantity,
+        UnitPrice: i.UnitPrice,
+        LineTotal: i.UnitPrice * i.Quantity,
+        IsRnD: i.IsRnD,
+        StlFilePath: i.StlFilePath,
+        StlFileName: i.StlFileName,
+        VolumeCm3: i.VolumeCm3,
+        SurfaceAreaCm2: i.SurfaceAreaCm2,
+        BoundingBoxXCm: i.BoundingBoxXCm,
+        BoundingBoxYCm: i.BoundingBoxYCm,
+        BoundingBoxZCm: i.BoundingBoxZCm,
+        TriangleCount: i.TriangleCount,
+        AspectRatio: i.AspectRatio,
+        Solidity: i.Solidity,
+        ExcessMaterialRatio: i.ExcessMaterialRatio,
+        IsClosedMesh: i.IsClosedMesh,
+        MaterialId: i.MaterialId,
+        MaterialName: i.Material?.Name,
+        ToleranceGrade: i.ToleranceGrade,
+        SurfaceFinish: i.SurfaceFinish,
+        HoleCount: i.HoleCount,
+        HeatTreated: i.HeatTreated,
+        ManualNotes: i.ManualNotes,
+        EstimatedMinutes: i.EstimatedMinutes,
+        EstimatedUnitPrice: i.EstimatedUnitPrice,
+        AnalyzedAt: i.AnalyzedAt);
 
     public async Task<OrderDetailDto> CreateAsync(CreateOrderRequest request, CancellationToken ct = default)
     {
@@ -151,15 +193,14 @@ public class OrderService : IOrderService
             Quantity = request.Quantity,
             UnitPrice = request.UnitPrice,
             IsRnD = request.IsRnD,
+            ToleranceGrade = ToleranceGrade.Standard,
+            SurfaceFinish = SurfaceFinish.AsMilled,
         };
 
         _db.OrderItems.Add(item);
         await _db.SaveChangesAsync(ct);
 
-        return new OrderItemDto(
-            item.Id, item.OrderId, item.PartName, item.Quantity,
-            item.UnitPrice, item.UnitPrice * item.Quantity,
-            item.IsRnD, item.StlFilePath);
+        return (await GetItemAsync(item.Id, ct))!;
     }
 
     public async Task RemoveItemAsync(int orderId, int itemId, CancellationToken ct = default)
@@ -169,5 +210,50 @@ public class OrderService : IOrderService
 
         _db.OrderItems.Remove(item);
         await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<OrderItemDto> UpdatePartFeaturesAsync(
+        int itemId,
+        PartFeaturesRequest request,
+        CancellationToken ct = default)
+    {
+        var item = await _db.OrderItems.FirstOrDefaultAsync(i => i.Id == itemId, ct)
+            ?? throw new KeyNotFoundException($"Sipariş kalemi bulunamadı (Id={itemId}).");
+
+        // MaterialId doğrulaması
+        var material = await _db.Materials
+            .FirstOrDefaultAsync(m => m.Id == request.MaterialId, ct)
+            ?? throw new InvalidOperationException("Seçilen hammadde bulunamadı.");
+        if (!material.IsActive)
+        {
+            throw new InvalidOperationException($"Hammadde aktif değil: {material.Name}");
+        }
+
+        // ToleranceGrade / SurfaceFinish whitelist
+        if (!ToleranceGrade.All.Contains(request.ToleranceGrade))
+        {
+            throw new InvalidOperationException($"Geçersiz tolerans: '{request.ToleranceGrade}'.");
+        }
+        if (!SurfaceFinish.All.Contains(request.SurfaceFinish))
+        {
+            throw new InvalidOperationException($"Geçersiz yüzey işlem: '{request.SurfaceFinish}'.");
+        }
+
+        item.MaterialId = request.MaterialId;
+        item.ToleranceGrade = request.ToleranceGrade;
+        item.SurfaceFinish = request.SurfaceFinish;
+        item.HoleCount = request.HoleCount;
+        item.HeatTreated = request.HeatTreated;
+        item.ManualNotes = string.IsNullOrWhiteSpace(request.ManualNotes) ? null : request.ManualNotes.Trim();
+
+        await _db.SaveChangesAsync(ct);
+
+        // STL varsa fiyat tahminini yeniden hesapla
+        if (!string.IsNullOrWhiteSpace(item.StlFilePath))
+        {
+            await _stl.RecalculateAsync(itemId, ct);
+        }
+
+        return (await GetItemAsync(itemId, ct))!;
     }
 }

@@ -8,5 +8,37 @@ public record OrderItemDto(
     decimal UnitPrice,
     decimal LineTotal,
     bool IsRnD,
-    string? StlFilePath
-);
+    string? StlFilePath,
+    string? StlFileName = null,
+
+    // STL geometri (Phase 4)
+    decimal? VolumeCm3 = null,
+    decimal? SurfaceAreaCm2 = null,
+    decimal? BoundingBoxXCm = null,
+    decimal? BoundingBoxYCm = null,
+    decimal? BoundingBoxZCm = null,
+    int? TriangleCount = null,
+
+    // STL geometri zenginleştirme (Phase 4.1)
+    decimal? AspectRatio = null,
+    decimal? Solidity = null,
+    decimal? ExcessMaterialRatio = null,
+    bool? IsClosedMesh = null,
+
+    // Manager input (Phase 4.1)
+    int? MaterialId = null,
+    string? MaterialName = null,
+    string ToleranceGrade = "Standard",
+    string SurfaceFinish = "AsMilled",
+    int HoleCount = 0,
+    bool HeatTreated = false,
+    string? ManualNotes = null,
+
+    // Tahminler
+    decimal? EstimatedMinutes = null,
+    decimal? EstimatedUnitPrice = null,
+    DateTime? AnalyzedAt = null
+)
+{
+    public bool HasStl => !string.IsNullOrWhiteSpace(StlFilePath);
+}

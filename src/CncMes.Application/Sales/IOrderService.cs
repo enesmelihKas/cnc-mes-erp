@@ -11,6 +11,16 @@ public interface IOrderService
     Task<OrderDetailDto> UpdateAsync(int id, UpdateOrderRequest request, CancellationToken ct = default);
     Task DeleteAsync(int id, CancellationToken ct = default);
 
+    Task<OrderItemDto?> GetItemAsync(int itemId, CancellationToken ct = default);
     Task<OrderItemDto> AddItemAsync(int orderId, OrderItemRequest request, CancellationToken ct = default);
     Task RemoveItemAsync(int orderId, int itemId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Manager parça özelliklerini günceller (hammadde, tolerans, yüzey, vs.).
+    /// Kayıt sonrası tahmin yeniden hesaplanır (STL varsa).
+    /// </summary>
+    Task<OrderItemDto> UpdatePartFeaturesAsync(
+        int itemId,
+        CncMes.Application.Pricing.PartFeaturesRequest request,
+        CancellationToken ct = default);
 }
