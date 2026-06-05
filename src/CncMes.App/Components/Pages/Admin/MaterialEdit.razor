@@ -1,0 +1,179 @@
+@page "/admin/materials/new"
+@page "/admin/materials/{Id:int}"
+@attribute [Authorize(Roles = Roles.Admin)]
+@using CncMes.Application.Pricing
+@using CncMes.Application.Pricing.Requests
+@inject IMaterialService Materials
+@inject NavigationManager Nav
+
+<PageTitle>CncMes — @(IsNew ? "Yeni Hammadde" : "Hammadde Düzenle")</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">@(IsNew ? "Yeni Hammadde" : $"Hammadde: {_loaded?.Name}")</h1>
+    <a class="btn btn-link" href="/admin/materials">← Listeye dön</a>
+</div>
+
+@if (!IsNew && _loaded is null && !_notFound)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else if (_notFound)
+{
+    <div class="alert alert-warning">Hammadde bulunamadı.</div>
+}
+else
+{
+    <EditForm Model="@_model" OnValidSubmit="HandleSubmit">
+        <DataAnnotationsValidator />
+
+        <div class="row g-3" style="max-width: 760px;">
+            <div class="col-12">
+                <label class="form-label">Ad *</label>
+                <InputText class="form-control" @bind-Value="_model.Name" />
+                <ValidationMessage For="@(() => _model.Name)" />
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label">Birim Maliyet (TL/cm³) *</label>
+                <InputNumber class="form-control" @bind-Value="_model.CostPerCm3" step="0.01" />
+                <ValidationMessage For="@(() => _model.CostPerCm3)" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Machinability Faktörü *</label>
+                <InputNumber class="form-control" @bind-Value="_model.MachinabilityFactor" step="0.1" />
+                <div class="form-text">1.0 = alüminyum referans. Çelik ~1.5, paslanmaz ~2.5, plastik ~0.6.</div>
+                <ValidationMessage For="@(() => _model.MachinabilityFactor)" />
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Yoğunluk (g/cm³) *</label>
+                <InputNumber class="form-control" @bind-Value="_model.DensityGramPerCm3" step="0.01" />
+                <div class="form-text">Stok düşümü hacim × yoğunluk × adet ile yapılır.</div>
+                <ValidationMessage For="@(() => _model.DensityGramPerCm3)" />
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">Stok (kg)</label>
+                <InputNumber class="form-control" @bind-Value="_model.StockKg" step="0.1" />
+                <ValidationMessage For="@(() => _model.StockKg)" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Düşük Stok Eşiği (kg)</label>
+                <InputNumber class="form-control" @bind-Value="_model.LowStockThreshold" step="0.1" />
+                <div class="form-text">Stok bu değerin altına düşünce admin paneli uyarır.</div>
+                <ValidationMessage For="@(() => _model.LowStockThreshold)" />
+            </div>
+
+            <div class="col-12">
+                <div class="form-check">
+                    <InputCheckbox class="form-check-input" id="isActive" @bind-Value="_model.IsActive" />
+                    <label class="form-check-label" for="isActive">Aktif (sipariş kalemlerinde seçilebilir)</label>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger mt-3">@_error</div>
+        }
+        @if (!string.IsNullOrEmpty(_info))
+        {
+            <div class="alert alert-info mt-3">@_info</div>
+        }
+
+        <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary" disabled="@_busy">
+                @(_busy ? "Kaydediliyor..." : (IsNew ? "Oluştur" : "Güncelle"))
+            </button>
+            @if (!IsNew)
+            {
+                <button type="button" class="btn btn-outline-danger ms-auto"
+                        @onclick="HandleDelete" disabled="@_busy">Sil</button>
+            }
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private bool IsNew => Id is null;
+
+    private MaterialRequest _model = new()
+    {
+        MachinabilityFactor = 1.0m,
+        IsActive = true,
+    };
+    private MaterialDto? _loaded;
+    private bool _notFound;
+    private bool _busy;
+    private string? _error;
+    private string? _info;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!IsNew)
+        {
+            _loaded = await Materials.GetAsync(Id!.Value);
+            if (_loaded is null) { _notFound = true; return; }
+
+            _model = new MaterialRequest
+            {
+                Name = _loaded.Name,
+                CostPerCm3 = _loaded.CostPerCm3,
+                MachinabilityFactor = _loaded.MachinabilityFactor,
+                DensityGramPerCm3 = _loaded.DensityGramPerCm3,
+                StockKg = _loaded.StockKg,
+                LowStockThreshold = _loaded.LowStockThreshold,
+                IsActive = _loaded.IsActive,
+            };
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _busy = true;
+        _error = null;
+        _info = null;
+        try
+        {
+            if (IsNew)
+            {
+                await Materials.CreateAsync(_model);
+            }
+            else
+            {
+                await Materials.UpdateAsync(Id!.Value, _model);
+            }
+            Nav.NavigateTo("/admin/materials");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task HandleDelete()
+    {
+        if (IsNew) return;
+        _busy = true;
+        _error = null;
+        _info = null;
+        try
+        {
+            await Materials.DeleteAsync(Id!.Value);
+            Nav.NavigateTo("/admin/materials");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

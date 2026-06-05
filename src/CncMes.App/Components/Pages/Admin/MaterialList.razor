@@ -1,0 +1,121 @@
+@page "/admin/materials"
+@attribute [Authorize(Roles = Roles.Admin)]
+@using CncMes.Application.Pricing
+@inject IMaterialService Materials
+@inject NavigationManager Nav
+
+<PageTitle>CncMes — Hammaddeler</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Hammaddeler</h1>
+    <a class="btn btn-primary" href="/admin/materials/new">+ Yeni Hammadde</a>
+</div>
+
+<div class="form-check form-switch mb-3">
+    <input type="checkbox" class="form-check-input" id="incInactive"
+           checked="@_includeInactive" @onchange="OnToggleInactive" />
+    <label class="form-check-label" for="incInactive">Pasif hammaddeleri de göster</label>
+</div>
+
+@if (_loading)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">
+        <strong>Veri yüklenirken hata:</strong>
+        <pre class="mb-0 mt-2" style="white-space:pre-wrap;">@_error</pre>
+    </div>
+}
+else if (_items.Count == 0)
+{
+    <div class="alert alert-secondary">Henüz hammadde yok.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Ad</th>
+                    <th class="text-end">Birim Maliyet (TL/cm³)</th>
+                    <th class="text-end">Yoğunluk (g/cm³)</th>
+                    <th class="text-end">Stok (kg)</th>
+                    <th class="text-end">Eşik (kg)</th>
+                    <th class="text-center">Durum</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var m in _items)
+                {
+                    <tr class="@(m.IsBelowThreshold && m.IsActive ? "table-warning" : null)">
+                        <td><strong>@m.Name</strong></td>
+                        <td class="text-end">@m.CostPerCm3.ToString("N2")</td>
+                        <td class="text-end">@m.DensityGramPerCm3.ToString("N2")</td>
+                        <td class="text-end">
+                            @m.StockKg.ToString("N1")
+                            @if (m.IsBelowThreshold && m.IsActive)
+                            {
+                                <span class="badge bg-warning text-dark ms-1">Eşik altı</span>
+                            }
+                        </td>
+                        <td class="text-end">@m.LowStockThreshold.ToString("N1")</td>
+                        <td class="text-center">
+                            @if (m.IsActive)
+                            {
+                                <span class="badge bg-success">Aktif</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-secondary">Pasif</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-secondary"
+                               href="@($"/admin/materials/{m.Id}")">Düzenle</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private List<MaterialDto> _items = new();
+    private bool _includeInactive;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var list = await Materials.ListAsync(_includeInactive);
+            _items = list.ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.ToString();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task OnToggleInactive(ChangeEventArgs e)
+    {
+        _includeInactive = (bool)(e.Value ?? false);
+        await LoadAsync();
+    }
+}
