@@ -1,10 +1,17 @@
 @page "/manager/orders/{Id:int}"
 @attribute [Authorize(Roles = Roles.Manager)]
+@using CncMes.Application.Production
+@using CncMes.Application.Reporting
 @using CncMes.Application.Sales
 @using CncMes.Application.Sales.Requests
 @using CncMes.Domain.Sales
+@using Microsoft.Maui.Storage
+@using Microsoft.Maui.ApplicationModel
 @inject ICustomerService Customers
 @inject IOrderService Orders
+@inject IJobService Jobs
+@inject IProfitLossService ProfitLoss
+@inject IProfitLossReportPdf ReportPdf
 @inject NavigationManager Nav
 
 <PageTitle>CncMes — Sipariş #@Id</PageTitle>
@@ -93,8 +100,65 @@ else
                         <dt class="col-sm-5">Toplam</dt>
                         <dd class="col-sm-7"><strong>@_detail.TotalPrice.ToString("N2") ₺</strong></dd>
                     </dl>
+                    <hr />
+                    <button class="btn btn-sm btn-outline-primary w-100"
+                            @onclick="GenerateJobs" disabled="@(_busy || _detail.Items.Count == 0)">
+                        Eksik iş emirlerini oluştur
+                    </button>
+                    @if (!string.IsNullOrEmpty(_jobMessage))
+                    {
+                        <div class="alert alert-info mt-2 mb-0 py-2 small">@_jobMessage</div>
+                    }
                 </div>
             </div>
+
+            @if (_pnl is not null)
+            {
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h2 class="h5 mb-0">Kar / Zarar</h2>
+                            <button class="btn btn-sm btn-outline-danger"
+                                    @onclick="DownloadPdf" disabled="@_pdfBusy">
+                                @(_pdfBusy ? "Hazırlanıyor..." : "PDF indir")
+                            </button>
+                        </div>
+
+                        @if (!_pnl.IsFullyCosted)
+                        {
+                            <div class="alert alert-warning py-2 small mb-2">
+                                @_pnl.CompletedJobs/@_pnl.TotalJobs iş tamamlandı — maliyet kısmi, kar/zarar geçici.
+                            </div>
+                        }
+
+                        <dl class="row mb-0 small">
+                            <dt class="col-7">Gelir</dt>
+                            <dd class="col-5 text-end">@_pnl.Revenue.ToString("N2") ₺</dd>
+                            <dt class="col-7 fw-normal text-muted">Hammadde</dt>
+                            <dd class="col-5 text-end text-muted">−@_pnl.MaterialCost.ToString("N2") ₺</dd>
+                            <dt class="col-7 fw-normal text-muted">İşçilik</dt>
+                            <dd class="col-5 text-end text-muted">−@_pnl.LaborCost.ToString("N2") ₺</dd>
+                            <dt class="col-7 fw-normal text-muted">Elektrik</dt>
+                            <dd class="col-5 text-end text-muted">−@_pnl.ElectricityCost.ToString("N2") ₺</dd>
+                            <dt class="col-7 fw-normal text-muted">Takım Aşınması</dt>
+                            <dd class="col-5 text-end text-muted">−@_pnl.ToolWearCost.ToString("N2") ₺</dd>
+                            <dt class="col-7">Toplam Maliyet</dt>
+                            <dd class="col-5 text-end">@_pnl.TotalCost.ToString("N2") ₺</dd>
+                        </dl>
+                        <hr class="my-2" />
+                        <div class="d-flex justify-content-between">
+                            <span class="fw-bold">Kar / Zarar (%@_pnl.MarginPercent.ToString("N1"))</span>
+                            <span class="fw-bold @(_pnl.Profit >= 0 ? "text-success" : "text-danger")">
+                                @_pnl.Profit.ToString("N2") ₺
+                            </span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_pdfMessage))
+                        {
+                            <div class="alert alert-info mt-2 mb-0 py-2 small">@_pdfMessage</div>
+                        }
+                    </div>
+                </div>
+            }
         </div>
     </div>
 
@@ -117,6 +181,7 @@ else
                         <th class="text-end">Birim Fiyat</th>
                         <th class="text-end">Tutar</th>
                         <th class="text-center">Ar-Ge</th>
+                        <th class="text-center">STL</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -124,12 +189,36 @@ else
                     @foreach (var item in _detail.Items)
                     {
                         <tr>
-                            <td>@item.PartName</td>
+                            <td>
+                                @item.PartName
+                                @if (!string.IsNullOrEmpty(item.MaterialName))
+                                {
+                                    <div class="text-muted small">@item.MaterialName</div>
+                                }
+                                @if (item.EstimatedUnitPrice is decimal est && est != item.UnitPrice)
+                                {
+                                    <div class="text-primary small">
+                                        Öneri: @est.ToString("N2") ₺
+                                    </div>
+                                }
+                            </td>
                             <td class="text-center">@item.Quantity</td>
                             <td class="text-end">@item.UnitPrice.ToString("N2") ₺</td>
                             <td class="text-end"><strong>@item.LineTotal.ToString("N2") ₺</strong></td>
                             <td class="text-center">@(item.IsRnD ? "Evet" : "—")</td>
+                            <td class="text-center">
+                                @if (item.HasStl)
+                                {
+                                    <span class="badge bg-success">✓</span>
+                                }
+                                else
+                                {
+                                    <span class="text-muted small">—</span>
+                                }
+                            </td>
                             <td class="text-end">
+                                <a class="btn btn-sm btn-outline-primary me-1"
+                                   href="@($"/manager/items/{item.Id}/stl")">STL</a>
                                 <button class="btn btn-sm btn-outline-danger"
                                         @onclick="() => RemoveItem(item.Id)" disabled="@_busy">Sil</button>
                             </td>
@@ -185,12 +274,16 @@ else
 
     private OrderDetailDto? _detail;
     private List<CustomerDto>? _customers;
+    private OrderProfitLossDto? _pnl;
     private UpdateOrderRequest _header = new();
     private OrderItemRequest _newItem = new();
     private bool _notFound;
     private bool _busy;
+    private bool _pdfBusy;
     private string? _headerError;
     private string? _itemError;
+    private string? _jobMessage;
+    private string? _pdfMessage;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -213,6 +306,8 @@ else
             Notes = _detail.Notes,
         };
         _newItem = new OrderItemRequest();
+
+        _pnl = await ProfitLoss.GetOrderAsync(Id);
     }
 
     private async Task HandleHeaderSave()
@@ -261,6 +356,48 @@ else
             _itemError = ex.Message;
         }
         finally { _busy = false; }
+    }
+
+    private async Task GenerateJobs()
+    {
+        _busy = true;
+        _jobMessage = null;
+        try
+        {
+            var created = await Jobs.CreateMissingForOrderAsync(Id);
+            _jobMessage = created == 0
+                ? "Yeni iş emri oluşturulmadı (zaten her kalemin emri var)."
+                : $"{created} yeni iş emri oluşturuldu. /manager/jobs ekranından atayabilirsin.";
+        }
+        catch (Exception ex)
+        {
+            _jobMessage = "Hata: " + ex.Message;
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task DownloadPdf()
+    {
+        if (_pnl is null) return;
+        _pdfBusy = true;
+        _pdfMessage = null;
+        try
+        {
+            var lines = await ProfitLoss.ListOrderCostLinesAsync(Id);
+            var bytes = ReportPdf.BuildOrderReport(_pnl, lines);
+
+            var fileName = $"KarZarar_Siparis_{Id}.pdf";
+            var path = Path.Combine(FileSystem.CacheDirectory, fileName);
+            await File.WriteAllBytesAsync(path, bytes);
+
+            await Launcher.Default.OpenAsync(new OpenFileRequest(
+                "Kar/Zarar Raporu", new ReadOnlyFile(path)));
+        }
+        catch (Exception ex)
+        {
+            _pdfMessage = "PDF oluşturulamadı: " + ex.Message;
+        }
+        finally { _pdfBusy = false; }
     }
 
     private async Task RemoveItem(int itemId)

@@ -17,6 +17,208 @@ namespace CncMes.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.10");
 
+            modelBuilder.Entity("CncMes.Domain.Pricing.Material", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("CostPerCm3")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("DensityGramPerCm3")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("LowStockThreshold")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("MachinabilityFactor")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("StockKg")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Materials", (string)null);
+                });
+
+            modelBuilder.Entity("CncMes.Domain.Pricing.PricingSettings", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("AspectFactorWeight")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("BaseSetupCost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ComplexityMultiplier")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ElectricityCostPerKwh")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("HeatTreatmentMultiplier")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("LaborCostPerMinute")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("MachineHourlyRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("MachinePowerKw")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("MinutesPerCm3")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("MinutesPerHole")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("MinutesPerThousandTriangles")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SurfaceFinishCostPerCm2Anodized")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("SurfaceFinishCostPerCm2Polished")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ToleranceFactorPrecise")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ToleranceFactorRough")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ToleranceFactorStandard")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ToleranceFactorUltraPrecise")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ToolWearCostPerMinute")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PricingSettings", (string)null);
+                });
+
+            modelBuilder.Entity("CncMes.Domain.Production.CostEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<decimal>("AmountTL")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("JobId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobId");
+
+                    b.HasIndex("Type");
+
+                    b.ToTable("CostEntries", (string)null);
+                });
+
+            modelBuilder.Entity("CncMes.Domain.Production.Job", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("AssignedOperatorId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("OrderItemId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedOperatorId");
+
+                    b.HasIndex("OrderItemId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("Jobs", (string)null);
+                });
+
             modelBuilder.Entity("CncMes.Domain.Sales.Customer", b =>
                 {
                     b.Property<int>("Id")
@@ -98,7 +300,54 @@ namespace CncMes.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateTime?>("AnalyzedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("AspectRatio")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("BoundingBoxXCm")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("BoundingBoxYCm")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("BoundingBoxZCm")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("EstimatedMinutes")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("EstimatedUnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("ExcessMaterialRatio")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("HeatTreated")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("HoleCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool?>("IsClosedMesh")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsRnD")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ManualNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("MaterialId")
                         .HasColumnType("INTEGER");
 
                     b.Property<int>("OrderId")
@@ -112,15 +361,46 @@ namespace CncMes.Infrastructure.Persistence.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("INTEGER");
 
+                    b.Property<decimal?>("Solidity")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StlFileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("StlFilePath")
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
+
+                    b.Property<decimal?>("SurfaceAreaCm2")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SurfaceFinish")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ToleranceGrade")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TriangleCount")
+                        .HasColumnType("INTEGER");
 
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(18, 2)
                         .HasColumnType("TEXT");
 
+                    b.Property<decimal?>("VolumeCm3")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("MaterialId");
 
                     b.HasIndex("OrderId");
 
@@ -321,6 +601,33 @@ namespace CncMes.Infrastructure.Persistence.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("CncMes.Domain.Production.CostEntry", b =>
+                {
+                    b.HasOne("CncMes.Domain.Production.Job", "Job")
+                        .WithMany()
+                        .HasForeignKey("JobId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Job");
+                });
+
+            modelBuilder.Entity("CncMes.Domain.Production.Job", b =>
+                {
+                    b.HasOne("CncMes.Infrastructure.Identity.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("AssignedOperatorId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("CncMes.Domain.Sales.OrderItem", "OrderItem")
+                        .WithMany("Jobs")
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("OrderItem");
+                });
+
             modelBuilder.Entity("CncMes.Domain.Sales.Order", b =>
                 {
                     b.HasOne("CncMes.Domain.Sales.Customer", "Customer")
@@ -334,11 +641,18 @@ namespace CncMes.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("CncMes.Domain.Sales.OrderItem", b =>
                 {
+                    b.HasOne("CncMes.Domain.Pricing.Material", "Material")
+                        .WithMany()
+                        .HasForeignKey("MaterialId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("CncMes.Domain.Sales.Order", "Order")
                         .WithMany("Items")
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Material");
 
                     b.Navigation("Order");
                 });
@@ -402,6 +716,11 @@ namespace CncMes.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("CncMes.Domain.Sales.Order", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("CncMes.Domain.Sales.OrderItem", b =>
+                {
+                    b.Navigation("Jobs");
                 });
 #pragma warning restore 612, 618
         }

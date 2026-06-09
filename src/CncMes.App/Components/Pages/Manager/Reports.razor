@@ -1,0 +1,143 @@
+@page "/manager/reports"
+@attribute [Authorize(Roles = Roles.Manager)]
+@using CncMes.Application.Reporting
+@using CncMes.Domain.Sales
+@inject IProfitLossService ProfitLoss
+@inject NavigationManager Nav
+
+<PageTitle>CncMes — Kar / Zarar</PageTitle>
+
+<h1 class="h3 mb-3">Kar / Zarar Raporu</h1>
+
+@if (_loading)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">
+        <strong>Rapor yüklenirken hata:</strong>
+        <pre class="mb-0 mt-2" style="white-space:pre-wrap;">@_error</pre>
+    </div>
+}
+else
+{
+    <!-- Aylık özet -->
+    <h2 class="h5 mb-2">Aylık Özet</h2>
+    @if (_monthly.Count == 0)
+    {
+        <div class="alert alert-secondary">Henüz veri yok.</div>
+    }
+    else
+    {
+        <div class="table-responsive mb-4">
+            <table class="table table-sm table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Ay</th>
+                        <th class="text-end">Gelir</th>
+                        <th class="text-end">Maliyet</th>
+                        <th class="text-end">Kar / Zarar</th>
+                        <th class="text-end">Marj</th>
+                        <th class="text-center">Sipariş</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in _monthly)
+                    {
+                        <tr>
+                            <td><strong>@m.Label</strong></td>
+                            <td class="text-end">@m.Revenue.ToString("N2") ₺</td>
+                            <td class="text-end text-muted">@m.TotalCost.ToString("N2") ₺</td>
+                            <td class="text-end @ProfitClass(m.Profit)">@m.Profit.ToString("N2") ₺</td>
+                            <td class="text-end @ProfitClass(m.Profit)">%@m.MarginPercent.ToString("N1")</td>
+                            <td class="text-center">@m.OrderCount</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <!-- Sipariş bazlı -->
+    <h2 class="h5 mb-2">Sipariş Bazlı</h2>
+    @if (_orders.Count == 0)
+    {
+        <div class="alert alert-secondary">Henüz sipariş yok.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Müşteri</th>
+                        <th>Tarih</th>
+                        <th class="text-end">Gelir</th>
+                        <th class="text-end">Maliyet</th>
+                        <th class="text-end">Kar / Zarar</th>
+                        <th class="text-end">Marj</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var o in _orders)
+                    {
+                        <tr>
+                            <td>@o.OrderId</td>
+                            <td>@o.CustomerName</td>
+                            <td>@o.OrderDate.ToString("dd.MM.yyyy")</td>
+                            <td class="text-end">@o.Revenue.ToString("N2") ₺</td>
+                            <td class="text-end text-muted">
+                                @o.TotalCost.ToString("N2") ₺
+                                @if (!o.IsFullyCosted)
+                                {
+                                    <span class="badge bg-warning text-dark ms-1"
+                                          title="@o.CompletedJobs/@o.TotalJobs iş tamamlandı">geçici</span>
+                                }
+                            </td>
+                            <td class="text-end @ProfitClass(o.Profit)"><strong>@o.Profit.ToString("N2") ₺</strong></td>
+                            <td class="text-end @ProfitClass(o.Profit)">%@o.MarginPercent.ToString("N1")</td>
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-outline-secondary"
+                                   href="@($"/manager/orders/{o.OrderId}")">Detay</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p class="text-muted small">
+            "geçici" = siparişin tüm işleri henüz tamamlanmadı; maliyet kısmi, kar/zarar değişebilir.
+            Maliyet kalemleri iş "Bitir" edildiğinde otomatik oluşur.
+        </p>
+    }
+}
+
+@code {
+    private IReadOnlyList<MonthlyProfitLossDto> _monthly = Array.Empty<MonthlyProfitLossDto>();
+    private IReadOnlyList<OrderProfitLossDto> _orders = Array.Empty<OrderProfitLossDto>();
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _monthly = await ProfitLoss.GetMonthlySummaryAsync();
+            _orders = await ProfitLoss.ListOrdersAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.ToString();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string ProfitClass(decimal profit) =>
+        profit >= 0 ? "text-success" : "text-danger";
+}
