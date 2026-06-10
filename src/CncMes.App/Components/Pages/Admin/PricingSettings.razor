@@ -1,0 +1,290 @@
+@page "/admin/pricing"
+@attribute [Authorize(Roles = Roles.Admin)]
+@using CncMes.Application.Pricing
+@inject IPricingService Pricing
+
+<PageTitle>CncMes — Fiyatlandırma</PageTitle>
+
+<h1 class="h3 mb-3">Fiyatlandırma Parametreleri</h1>
+
+<p class="text-muted small">
+    Bu değerler STL analizi sonrası fiyat tahmininde kullanılır.
+    Her bölümün başlığına tıklayarak ilgili katsayıları aç/kapat.
+</p>
+
+@if (_form is null)
+{
+    <p class="text-muted">Yükleniyor...</p>
+}
+else
+{
+    <EditForm Model="@_form" OnValidSubmit="HandleSave">
+        <DataAnnotationsValidator />
+
+        <div class="accordion mb-3" id="pricingAccordion">
+
+            @* 1. Temel Maliyetler *@
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button @(_openSection == 1 ? "" : "collapsed")" type="button"
+                            @onclick="() => Toggle(1)" aria-expanded="@(_openSection == 1)">
+                        1. Temel Maliyetler
+                    </button>
+                </h2>
+                <div class="accordion-collapse collapse @(_openSection == 1 ? "show" : "")">
+                    <div class="accordion-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">İşçilik (TL/dk)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.LaborCostPerMinute" step="0.01" />
+                                <ValidationMessage For="@(() => _form.LaborCostPerMinute)" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Tezgah saat ücreti (TL/saat)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.MachineHourlyRate" step="0.01" />
+                                <ValidationMessage For="@(() => _form.MachineHourlyRate)" />
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Baz kurulum (TL)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.BaseSetupCost" step="0.01" />
+                                <ValidationMessage For="@(() => _form.BaseSetupCost)" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* 2. Süre Katsayıları *@
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button @(_openSection == 2 ? "" : "collapsed")" type="button"
+                            @onclick="() => Toggle(2)" aria-expanded="@(_openSection == 2)">
+                        2. Süre Katsayıları
+                    </button>
+                </h2>
+                <div class="accordion-collapse collapse @(_openSection == 2 ? "show" : "")">
+                    <div class="accordion-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Cm³ başına dakika</label>
+                                <InputNumber class="form-control" @bind-Value="_form.MinutesPerCm3" step="0.01" />
+                                <div class="form-text small">Düz blok parçayı yontmak için tahmini süre.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">1000 üçgen başına dakika</label>
+                                <InputNumber class="form-control" @bind-Value="_form.MinutesPerThousandTriangles" step="0.01" />
+                                <div class="form-text small">Detay arttıkça eklenen işleme süresi.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Delik başına dakika</label>
+                                <InputNumber class="form-control" @bind-Value="_form.MinutesPerHole" step="0.01" />
+                                <div class="form-text small">Manager elle gireceği delik adedi başına ek süre.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Aspect ratio çarpan ağırlığı</label>
+                                <InputNumber class="form-control" @bind-Value="_form.AspectFactorWeight" step="0.01" />
+                                <div class="form-text small">Uzun parçalar için fixture/setup cezası ağırlığı.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* 3. Tolerans Çarpanları *@
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button @(_openSection == 3 ? "" : "collapsed")" type="button"
+                            @onclick="() => Toggle(3)" aria-expanded="@(_openSection == 3)">
+                        3. Tolerans Çarpanları
+                    </button>
+                </h2>
+                <div class="accordion-collapse collapse @(_openSection == 3 ? "show" : "")">
+                    <div class="accordion-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Kaba (±0.5 mm)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.ToleranceFactorRough" step="0.1" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Standart (±0.1 mm)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.ToleranceFactorStandard" step="0.1" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Hassas (±0.05 mm)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.ToleranceFactorPrecise" step="0.1" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Ultra Hassas (±0.01 mm)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.ToleranceFactorUltraPrecise" step="0.1" />
+                            </div>
+                        </div>
+                        <div class="form-text small mt-2">
+                            Süre çarpanı: işçilik ve makine maliyeti bu oranla artar.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* 4. Yüzey İşlem *@
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button @(_openSection == 4 ? "" : "collapsed")" type="button"
+                            @onclick="() => Toggle(4)" aria-expanded="@(_openSection == 4)">
+                        4. Yüzey İşlem (TL/cm²)
+                    </button>
+                </h2>
+                <div class="accordion-collapse collapse @(_openSection == 4 ? "show" : "")">
+                    <div class="accordion-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Cilalı (Polished)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.SurfaceFinishCostPerCm2Polished" step="0.01" />
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Eloksal (Anodized)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.SurfaceFinishCostPerCm2Anodized" step="0.01" />
+                            </div>
+                        </div>
+                        <div class="form-text small mt-2">
+                            Yüzey alanı × bu maliyet = ek tutar. "İşlenmiş" (AsMilled) için ek yok.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* 5. Karmaşıklık & Isıl İşlem *@
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button @(_openSection == 5 ? "" : "collapsed")" type="button"
+                            @onclick="() => Toggle(5)" aria-expanded="@(_openSection == 5)">
+                        5. Karmaşıklık & Isıl İşlem
+                    </button>
+                </h2>
+                <div class="accordion-collapse collapse @(_openSection == 5 ? "show" : "")">
+                    <div class="accordion-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Karmaşıklık çarpanı</label>
+                                <InputNumber class="form-control" @bind-Value="_form.ComplexityMultiplier" step="0.01" />
+                                <div class="form-text small">Kurulum maliyetini ölçekler.</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Isıl işlem çarpanı</label>
+                                <InputNumber class="form-control" @bind-Value="_form.HeatTreatmentMultiplier" step="0.01" />
+                                <div class="form-text small">Isıl işlem aktifse toplam fiyat bu oranla çarpılır (örn. 1.15 = +%15).</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @* 6. Kar/Zarar Maliyet Katsayıları *@
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button @(_openSection == 6 ? "" : "collapsed")" type="button"
+                            @onclick="() => Toggle(6)" aria-expanded="@(_openSection == 6)">
+                        6. Kar/Zarar Maliyet Katsayıları
+                    </button>
+                </h2>
+                <div class="accordion-collapse collapse @(_openSection == 6 ? "show" : "")">
+                    <div class="accordion-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Elektrik (TL/kWh)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.ElectricityCostPerKwh" step="0.01" />
+                                <div class="form-text small">Sanayi elektrik birim fiyatı.</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Tezgah gücü (kW)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.MachinePowerKw" step="0.1" />
+                                <div class="form-text small">Elektrik = süre × güç × birim fiyat.</div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Takım aşınması (TL/dk)</label>
+                                <InputNumber class="form-control" @bind-Value="_form.ToolWearCostPerMinute" step="0.01" />
+                                <div class="form-text small">Dakika başına takım aşınma payı.</div>
+                            </div>
+                        </div>
+                        <div class="form-text small mt-2">
+                            Bu katsayılar fiyat tahmininde değil, <strong>iş tamamlanınca</strong> üretilen
+                            gerçek maliyet kalemlerinde (kar/zarar raporu) kullanılır.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <div class="alert alert-danger">@_error</div>
+        }
+        @if (_saved)
+        {
+            <div class="alert alert-success">Kaydedildi. Bundan sonraki STL analizleri bu değerleri kullanacak.</div>
+        }
+
+        <div class="d-flex gap-2 align-items-center">
+            <button type="submit" class="btn btn-primary" disabled="@_busy">Kaydet</button>
+            @if (_current is not null)
+            {
+                <span class="text-muted small ms-2">
+                    Son güncelleme: @_current.UpdatedAt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
+                </span>
+            }
+        </div>
+    </EditForm>
+}
+
+@code {
+    private PricingSettingsRequest? _form;
+    private PricingSettingsDto? _current;
+    private bool _busy;
+    private bool _saved;
+    private string? _error;
+    private int _openSection = 1;
+
+    private void Toggle(int section) => _openSection = _openSection == section ? 0 : section;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _current = await Pricing.GetAsync();
+        _form = new PricingSettingsRequest
+        {
+            LaborCostPerMinute = _current.LaborCostPerMinute,
+            MachineHourlyRate = _current.MachineHourlyRate,
+            BaseSetupCost = _current.BaseSetupCost,
+            MinutesPerCm3 = _current.MinutesPerCm3,
+            MinutesPerThousandTriangles = _current.MinutesPerThousandTriangles,
+            MinutesPerHole = _current.MinutesPerHole,
+            AspectFactorWeight = _current.AspectFactorWeight,
+            ToleranceFactorRough = _current.ToleranceFactorRough,
+            ToleranceFactorStandard = _current.ToleranceFactorStandard,
+            ToleranceFactorPrecise = _current.ToleranceFactorPrecise,
+            ToleranceFactorUltraPrecise = _current.ToleranceFactorUltraPrecise,
+            SurfaceFinishCostPerCm2Polished = _current.SurfaceFinishCostPerCm2Polished,
+            SurfaceFinishCostPerCm2Anodized = _current.SurfaceFinishCostPerCm2Anodized,
+            ComplexityMultiplier = _current.ComplexityMultiplier,
+            HeatTreatmentMultiplier = _current.HeatTreatmentMultiplier,
+            ElectricityCostPerKwh = _current.ElectricityCostPerKwh,
+            MachinePowerKw = _current.MachinePowerKw,
+            ToolWearCostPerMinute = _current.ToolWearCostPerMinute,
+        };
+    }
+
+    private async Task HandleSave()
+    {
+        if (_form is null) return;
+        _busy = true;
+        _error = null;
+        _saved = false;
+        try
+        {
+            _current = await Pricing.UpdateAsync(_form);
+            _saved = true;
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _busy = false; }
+    }
+}

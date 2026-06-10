@@ -1,11 +1,71 @@
 @page "/admin"
 @attribute [Authorize(Roles = Roles.Admin)]
+@using CncMes.Application.Pricing
+@inject IMaterialService Materials
 
 <PageTitle>CncMes — Admin</PageTitle>
 
-<h1>Admin Paneli</h1>
-<p>Sistem yöneticisine özel ekran. İleride buraya kullanıcı yönetimi, fiyat formülü parametreleri, sistem ayarları gelecek.</p>
+<h1 class="h3 mb-3">Admin Paneli</h1>
 
-<div class="alert alert-info">
-    Şu an placeholder. Phase 2'den itibaren modüller (müşteri, sipariş, stok) doldurulacak.
+@if (_lowStock is not null && _lowStock.Count > 0)
+{
+    <div class="alert alert-warning d-flex align-items-start">
+        <div class="me-3" style="font-size: 1.5rem;">⚠</div>
+        <div class="flex-grow-1">
+            <strong>Stok eşiğinin altındaki hammaddeler (@_lowStock.Count):</strong>
+            <ul class="mb-1 mt-1">
+                @foreach (var m in _lowStock)
+                {
+                    <li>
+                        <strong>@m.Name</strong> —
+                        stok <span class="text-danger">@m.StockKg.ToString("N1") kg</span>
+                        (eşik: @m.LowStockThreshold.ToString("N1") kg)
+                    </li>
+                }
+            </ul>
+            <a href="/admin/materials" class="small">Hammadde yönetimine git →</a>
+        </div>
+    </div>
+}
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Fiyatlandırma Parametreleri</h5>
+                <p class="card-text text-muted small">
+                    STL analizinde kullanılan birim maliyetler, dakika/cm³ katsayıları, kurulum maliyeti.
+                </p>
+                <a class="btn btn-primary stretched-link" href="/admin/pricing">Aç →</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">Hammaddeler & Stok</h5>
+                <p class="card-text text-muted small">
+                    Hammadde ekle/düzenle, birim maliyet, yoğunluk ve stok takibi.
+                </p>
+                <a class="btn btn-primary stretched-link" href="/admin/materials">Aç →</a>
+            </div>
+        </div>
+    </div>
 </div>
+
+@code {
+    private IReadOnlyList<MaterialDto>? _lowStock;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _lowStock = await Materials.ListLowStockAsync();
+        }
+        catch
+        {
+            // Dashboard'ı çökertmemek için sessiz geç — uyarı kartı görünmez.
+            _lowStock = Array.Empty<MaterialDto>();
+        }
+    }
+}
