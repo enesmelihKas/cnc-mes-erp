@@ -38,7 +38,7 @@ public class PricingSettingsConfiguration : IEntityTypeConfiguration<PricingSett
         builder.Property(p => p.ComplexityMultiplier).HasPrecision(10, 4);
         builder.Property(p => p.HeatTreatmentMultiplier).HasPrecision(10, 4);
 
-        // Kar/zarar katsayıları (Phase 6)
+        // Kar/zarar katsayıları
         builder.Property(p => p.ElectricityCostPerKwh).HasPrecision(18, 4);
         builder.Property(p => p.MachinePowerKw).HasPrecision(10, 4);
         builder.Property(p => p.ToolWearCostPerMinute).HasPrecision(18, 4);

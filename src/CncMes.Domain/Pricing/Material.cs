@@ -12,7 +12,7 @@ public class Material
     /// <summary>İşlenebilirlik faktörü: 1.0 referans (alüminyum), çelik ~1.5, paslanmaz ~2.5, plastik ~0.6.</summary>
     public decimal MachinabilityFactor { get; set; }
 
-    /// <summary>Hammaddenin yoğunluğu (g/cm³) — Phase 5'te kg stok düşümü için.</summary>
+    /// <summary>Hammaddenin yoğunluğu (g/cm³); stok düşümünde kg hesabı için kullanılır.</summary>
     public decimal DensityGramPerCm3 { get; set; }
 
     /// <summary>Eldeki hammadde miktarı (kg). Negatif olabilir (aşım uyarısı için).</summary>

@@ -11,7 +11,7 @@ public record OrderItemDto(
     string? StlFilePath,
     string? StlFileName = null,
 
-    // STL geometri (Phase 4)
+    // STL geometri
     decimal? VolumeCm3 = null,
     decimal? SurfaceAreaCm2 = null,
     decimal? BoundingBoxXCm = null,
@@ -19,13 +19,13 @@ public record OrderItemDto(
     decimal? BoundingBoxZCm = null,
     int? TriangleCount = null,
 
-    // STL geometri zenginleştirme (Phase 4.1)
+    // Ek geometri metrikleri
     decimal? AspectRatio = null,
     decimal? Solidity = null,
     decimal? ExcessMaterialRatio = null,
     bool? IsClosedMesh = null,
 
-    // Manager input (Phase 4.1)
+    // Manager input
     int? MaterialId = null,
     string? MaterialName = null,
     string ToleranceGrade = "Standard",

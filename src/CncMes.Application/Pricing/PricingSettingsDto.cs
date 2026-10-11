@@ -23,7 +23,7 @@ public record PricingSettingsDto(
     // Karmaşıklık & ısıl işlem
     decimal ComplexityMultiplier,
     decimal HeatTreatmentMultiplier,
-    // Kar/zarar maliyet katsayıları (Phase 6)
+    // Kar/zarar maliyet katsayıları
     decimal ElectricityCostPerKwh,
     decimal MachinePowerKw,
     decimal ToolWearCostPerMinute,

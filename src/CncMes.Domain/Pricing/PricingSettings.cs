@@ -31,7 +31,7 @@ public class PricingSettings
     public decimal ComplexityMultiplier { get; set; }
     public decimal HeatTreatmentMultiplier { get; set; }
 
-    // --- Kar/Zarar maliyet katsayıları (Phase 6) ---
+    // --- Kar/Zarar maliyet katsayıları ---
     /// <summary>Elektrik birim fiyatı (TL/kWh).</summary>
     public decimal ElectricityCostPerKwh { get; set; }
     /// <summary>Tezgâhın çektiği ortalama güç (kW) — elektrik maliyeti için.</summary>

@@ -19,7 +19,7 @@ public class OrderItem
     public string? StlFileName { get; set; }
     public bool IsRnD { get; set; }
 
-    // --- Manager input (Phase 4.1) ---
+    // --- Manager input ---
     public int? MaterialId { get; set; }
     public Material? Material { get; set; }
 
@@ -37,7 +37,7 @@ public class OrderItem
     public decimal? BoundingBoxZCm { get; set; }
     public int? TriangleCount { get; set; }
 
-    // --- STL geometri zenginleştirme (Phase 4.1) ---
+    // --- Ek geometri metrikleri ---
     public decimal? AspectRatio { get; set; }
     public decimal? Solidity { get; set; }
     public decimal? ExcessMaterialRatio { get; set; }

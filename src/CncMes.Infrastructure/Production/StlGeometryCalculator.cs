@@ -56,7 +56,7 @@ internal static class StlGeometryCalculator
         var bbY = (maxY - minY) / 10d;
         var bbZ = (maxZ - minZ) / 10d;
 
-        // --- Phase 4.1 zenginleştirme ---
+        // --- Ek geometri metrikleri ---
         var dims = new[] { bbX, bbY, bbZ };
         var maxDim = dims.Max();
         var minDim = Math.Max(dims.Min(), 0.001d); // sıfıra bölme koruması

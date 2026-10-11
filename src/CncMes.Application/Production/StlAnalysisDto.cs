@@ -7,7 +7,7 @@ public record StlGeometryDto(
     decimal BoundingBoxYCm,
     decimal BoundingBoxZCm,
     int TriangleCount,
-    // --- Phase 4.1 zenginleştirme ---
+    // --- Ek geometri metrikleri ---
     decimal AspectRatio,
     decimal Solidity,
     decimal ExcessMaterialRatio,

@@ -2,7 +2,7 @@ namespace CncMes.Domain.Production;
 
 /// <summary>
 /// Bir iş tamamlandığında üretilen maliyet kaleminin türü.
-/// Kar/zarar hesabı bu dört kalemden toplanır (PLAN §2 / Phase 6).
+/// Kar/zarar hesabı bu dört kalemden toplanır.
 /// </summary>
 public static class CostType
 {

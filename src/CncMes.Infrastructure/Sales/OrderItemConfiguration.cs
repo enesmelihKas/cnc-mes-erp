@@ -16,7 +16,7 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(i => i.StlFilePath).HasMaxLength(500);
         builder.Property(i => i.StlFileName).HasMaxLength(255);
 
-        // Geometri (Phase 4)
+        // Geometri
         builder.Property(i => i.VolumeCm3).HasPrecision(18, 4);
         builder.Property(i => i.SurfaceAreaCm2).HasPrecision(18, 4);
         builder.Property(i => i.BoundingBoxXCm).HasPrecision(18, 4);
@@ -25,12 +25,12 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
         builder.Property(i => i.EstimatedMinutes).HasPrecision(18, 2);
         builder.Property(i => i.EstimatedUnitPrice).HasPrecision(18, 2);
 
-        // Geometri zenginleştirme (Phase 4.1)
+        // Ek geometri metrikleri
         builder.Property(i => i.AspectRatio).HasPrecision(10, 4);
         builder.Property(i => i.Solidity).HasPrecision(10, 4);
         builder.Property(i => i.ExcessMaterialRatio).HasPrecision(10, 4);
 
-        // Parça özellikleri (Phase 4.1)
+        // Parça özellikleri
         builder.Property(i => i.ToleranceGrade).IsRequired().HasMaxLength(30);
         builder.Property(i => i.SurfaceFinish).IsRequired().HasMaxLength(30);
         builder.Property(i => i.ManualNotes).HasMaxLength(500);

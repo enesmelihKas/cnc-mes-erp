@@ -142,7 +142,7 @@ public static class DbInitializer
             ComplexityMultiplier = 1.00m,
             HeatTreatmentMultiplier = 1.15m,
 
-            // Kar/zarar maliyet katsayıları (Phase 6)
+            // Kar/zarar maliyet katsayıları
             ElectricityCostPerKwh = 3.50m,    // sanayi elektrik TL/kWh
             MachinePowerKw = 7.50m,           // CNC tezgah ortalama güç
             ToolWearCostPerMinute = 1.20m,    // takım aşınma payı TL/dk
